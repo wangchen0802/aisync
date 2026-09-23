@@ -2,7 +2,10 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { requireUser } from "@/lib/session";
 import { q } from "@/lib/db";
-import { getSetting } from "@/lib/core";
+import { getSetting, listMembers, setSetting } from "@/lib/core";
+import { origin } from "@/lib/origin";
+import { MobileTop, QuickCapture, TabBar } from "@/components/shell";
+import { CaptureButton } from "@/components/capture-button";
 import { Avatar, Icon, LogoMark } from "@/components/ui";
 import { CommandPalette, Crumb, DetailToggle, NavLink, OpenPalette, RefreshOnFocus, Toaster } from "@/components/client";
 import { logout } from "@/lib/actions";
@@ -29,10 +32,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
      where not p.archived group by p.id order by p.created_at`,
   );
   const ws = await getSetting("workspace_name", "SimReal");
+  // Remember the public URL so notifications can link back into the app.
+  const base = await origin();
+  if (!base.includes("localhost") && (await getSetting("base_url", "")) !== base) await setSetting("base_url", base);
+  const members = (await listMembers()).filter((m) => !m.invited || m.id === me.id).map((m) => ({ id: m.id, name: m.name }));
   const detail = (await cookies()).get("detail")?.value ?? "std";
 
   return (
     <div className="shell" data-detail={["lite", "std", "full"].includes(detail) ? detail : "std"}>
+      <MobileTop ws={ws} me={{ id: me.id, name: me.name, image: me.image }} inbox={counts.inbox} detail={detail} />
       <aside className="side">
         <Link href="/" className="ws">
           <LogoMark />
@@ -72,10 +80,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <Crumb ws={ws} />
           <span className="grow" />
           <DetailToggle initial={detail} />
+          <CaptureButton />
           <Link className="btn pri" href="/import"><Icon name="plus" />导入对话</Link>
         </header>
         <main className="content">{children}</main>
       </div>
+      <TabBar attention={counts.attention} inbox={counts.inbox} />
+      <QuickCapture projects={projects.map((p) => ({ id: p.id, name: p.name }))} members={members} />
       <CommandPalette />
       <Toaster />
       <RefreshOnFocus />

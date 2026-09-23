@@ -7,6 +7,8 @@ import { SOURCES, type SourceKey } from "@/lib/meta";
 import { ActionButton, CopyButton } from "@/components/client";
 import { ContextCopy } from "@/components/context-copy";
 import { Icon, Source } from "@/components/ui";
+import { AutoPublishToggle } from "@/components/prefs";
+import { one } from "@/lib/db";
 
 export const metadata = { title: "连接 AI" };
 
@@ -17,6 +19,7 @@ export default async function Connect() {
   const token = await ensureToken(me.id);
   const base = await origin();
   const projects = await listProjects();
+  const auto = (await one<{ auto_publish: boolean }>("select auto_publish from users where id = $1", [me.id]))?.auto_publish ?? false;
   const masked = `${token.slice(0, 7)}${"•".repeat(18)}${token.slice(-4)}`;
   const mcpCmd = `claude mcp add --transport http simreal ${base}/api/mcp --header "Authorization: Bearer ${token}" --scope user`;
   const hookCmd = `mkdir -p ~/.claude/hooks && curl -fsSL ${base}/api/hook -H "Authorization: Bearer ${token}" -o ~/.claude/hooks/simreal-sync.mjs`;
@@ -31,6 +34,8 @@ export default async function Connect() {
           <p>不用换工具。大家继续用自己习惯的 AI，SimReal 在旁边负责两件事：把对话里的结论同步给团队，再把团队共识带回每个 AI。</p>
         </div>
       </div>
+
+      <section className="box pad"><AutoPublishToggle on={auto} /></section>
 
       <section className="box">
         <div className="box-h"><h2><Icon name="lock" />你的个人密钥</h2><span className="c">插件、Claude Code、Cursor 都用它</span></div>

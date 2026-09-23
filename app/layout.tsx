@@ -7,9 +7,14 @@ export const metadata: Metadata = {
   title: { default: "SimReal Sync", template: "%s · SimReal Sync" },
   description: "把团队在各个 AI 里的对话，变成大家都看得见的共识和任务进度。",
   icons: { icon: "/icon.svg" },
+  appleWebApp: { capable: true, title: "SimReal", statusBarStyle: "default" },
+  formatDetection: { telephone: false },
 };
 
 export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#fafafa" },
     { media: "(prefers-color-scheme: dark)", color: "#09090b" },

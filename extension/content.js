@@ -115,7 +115,9 @@
     const r = await send({ type: "sync", payload: { source: SOURCE, title: title(), url: location.href, text: c.text } });
     if (!r.ok) return toast(r.error, true);
     const d = r.data;
-    toast(`已发送 ✓ 提炼出 ${d.items} 条${d.updates ? `、${d.updates} 个任务进度` : ""}${c.partial ? "（仅选中部分）" : ""}<br><a href="${d.review_url}" target="_blank" rel="noopener">去收件箱审核发布 →</a>`);
+    const esc = (x) => String(x).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
+    const link = d.unchanged ? "" : d.auto && !d.pending ? `<a href="${esc(d.team_url)}" target="_blank" rel="noopener">查看团队动态 →</a>` : `<a href="${esc(d.review_url)}" target="_blank" rel="noopener">去收件箱审核 →</a>`;
+    toast(`${d.unchanged ? "" : "✓ "}${esc(d.message)}${c.partial ? "（仅选中部分）" : ""}${link ? "<br>" + link : ""}`);
   }
 
   async function ctx() {

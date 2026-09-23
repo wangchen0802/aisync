@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/session";
 import { q } from "@/lib/db";
-import { ackThreshold, listItems, listMembers, listProjects } from "@/lib/core";
+import { ackThreshold, listItems, listMembers, listProjects, sinceLastVisit } from "@/lib/core";
 import { agree, resolveConflict } from "@/lib/actions";
 import { ago, code, progressOf, SOURCES, sourceOf, TASK_STATUS } from "@/lib/meta";
 import { ActionButton, NewItemButton } from "@/components/client";
@@ -17,7 +17,16 @@ function greet() {
 
 export default async function Overview() {
   const me = await requireUser();
-  const [items, projects, members, threshold] = await Promise.all([listItems(me.id, { limit: 500 }), listProjects(), listMembers(), ackThreshold()]);
+  const [items, projects, members, threshold, since] = await Promise.all([listItems(me.id, { limit: 500 }), listProjects(), listMembers(), ackThreshold(), sinceLastVisit(me.id)]);
+  const changes = await q<{ id: number; type: string; text: string; created_at: string; user_id: number; name: string; item_id: number | null; kind: string | null; title: string | null; conv_title: string | null }>(
+    `select e.id, e.type, e.text, e.created_at, e.user_id, u.name, e.item_id, i.kind, i.title, c.title as conv_title
+     from events e join users u on u.id = e.user_id left join items i on i.id = e.item_id left join conversations c on c.id = e.conversation_id
+     where e.created_at > $1 and e.user_id <> $2 and e.type in ('publish', 'confirm', 'conflict', 'comment', 'task_progress', 'create', 'object')
+       and (i.id is null or i.visibility = 'team')
+     order by e.created_at desc limit 40`,
+    [since, me.id],
+  );
+  const changeCount = (t: string[]) => changes.filter((c) => t.includes(c.type)).length;
   const decisions = items.filter((i) => i.kind === "decision");
   const tasks = items.filter((i) => i.kind === "task");
 
@@ -82,7 +91,7 @@ export default async function Overview() {
       </div>
 
       {onboarding ? (
-        <section className="box">
+        <section className="box onboard">
           <div className="box-h"><h2>开始使用 SimReal Sync <span className="c">{steps.filter((s) => s.ok).length}/{steps.length}</span></h2></div>
           <div className="steps">
             {steps.map((s, i) => (
@@ -97,7 +106,41 @@ export default async function Overview() {
         </section>
       ) : null}
 
-      <div className="stats">
+      {changes.length ? (
+        <section className="box since">
+          <div className="box-h">
+            <h2><Icon name="bolt" />自你上次查看 <span className="c">{ago(since)}</span></h2>
+            <span className="muted" style={{ fontSize: 12 }}>
+              {[
+                changeCount(["confirm"]) ? `${changeCount(["confirm"])} 项达成共识` : "",
+                changeCount(["publish", "create"]) ? `${changeCount(["publish", "create"])} 条新内容` : "",
+                changeCount(["task_progress"]) ? `${changeCount(["task_progress"])} 次任务进展` : "",
+                changeCount(["comment", "object"]) ? `${changeCount(["comment", "object"])} 条讨论` : "",
+              ].filter(Boolean).join(" · ")}
+            </span>
+          </div>
+          <ul className="since-list">
+            {changes.slice(0, 6).map((c) => (
+              <li key={c.id}>
+                <Avatar id={c.user_id} name={c.name} />
+                <span className="since-t">
+                  <b>{c.name}</b>{" "}
+                  {c.type === "publish" ? <>同步了「{c.conv_title}」</>
+                    : c.type === "confirm" ? <>让 {c.item_id ? <Link className="link" href={`/item/${c.item_id}`}>{code(c.kind ?? "decision", c.item_id)}</Link> : null} 达成共识：{c.title}</>
+                    : c.type === "conflict" ? <span style={{ color: "var(--red)" }}>发现冲突：{c.text}</span>
+                    : c.type === "comment" || c.type === "object" ? <>评论了 {c.item_id ? <Link className="link" href={`/item/${c.item_id}#discuss`}>{c.title}</Link> : null}：<span className="muted">{c.text.slice(0, 60)}</span></>
+                    : c.type === "task_progress" ? <>推进了 {c.item_id ? <Link className="link" href={`/item/${c.item_id}`}>{c.title}</Link> : null}：<span className="muted">{c.text}</span></>
+                    : <>新建了 {c.item_id ? <Link className="link" href={`/item/${c.item_id}`}>{c.title}</Link> : c.text}</>}
+                </span>
+                <span className="muted since-ago">{ago(c.created_at)}</span>
+              </li>
+            ))}
+          </ul>
+          {changes.length > 6 ? <div className="pad" style={{ paddingTop: 0 }}><Link className="link" href="/activity">查看全部 {changes.length} 条动态 <Icon name="arrow" className="i sm" /></Link></div> : null}
+        </section>
+      ) : null}
+
+      <div className="stats home-stats">
         <div className="box st"><span className="l"><Icon name="cons" />本周新共识</span><span className="v">{weekConfirmed}</span><Spark values={daily.d} color="var(--green)" /><span className="d">共 {decisions.filter((d) => d.status === "confirmed").length} 条已确认</span></div>
         <div className="box st"><span className="l"><Icon name="task" />进行中任务</span><span className="v">{doing}</span><Spark values={daily.t} color="var(--accent)" /><span className="d">{tasks.filter((t) => t.status === "done").length} 个已完成</span></div>
         <div className="box st"><span className="l"><Icon name="alert" />待确认 / 冲突</span><span className="v">{pending}</span><Spark values={daily.c} color="var(--amber)" /><span className="d">{conflicts.length ? <b style={{ color: "var(--red)", fontWeight: 500 }}>{conflicts.length} 处冲突</b> : `需要 ${threshold} 人确认`}</span></div>
@@ -172,7 +215,7 @@ export default async function Overview() {
           <section className="box">
             <div className="box-h"><h2>最新共识</h2><Link className="link" href="/consensus">全部 <Icon name="arrow" className="i sm" /></Link></div>
             <div className="list">
-              {decisions.filter((d) => d.status !== "superseded").slice(0, 5).map((d) => <DecisionRow key={d.id} item={d} me={me} threshold={threshold} other={d.conflict_with ? byId.get(d.conflict_with) : null} />)}
+              {decisions.filter((d) => d.status !== "superseded").slice(0, 5).map((d) => <DecisionRow key={d.id} item={d} me={me} threshold={threshold} since={since} other={d.conflict_with ? byId.get(d.conflict_with) : null} />)}
               {!decisions.length ? <div className="empty"><b>还没有共识</b><p>导入一段 AI 对话，或者手动记录一条决策。</p><Link className="btn" href="/import">导入对话</Link></div> : null}
             </div>
           </section>
@@ -196,9 +239,9 @@ export default async function Overview() {
               {tasks.filter((t) => t.last_update_at).sort((a, b) => (b.last_update_at! > a.last_update_at! ? 1 : -1)).slice(0, 5).map((t) => {
                 const pr = progressOf(t.status, t.subtasks);
                 return (
-                  <Link key={t.id} className="it" href={`/tasks#T-${t.id}`} style={{ gridTemplateColumns: "minmax(0,1fr)" }}>
+                  <Link key={t.id} className="it" href={`/item/${t.id}`} style={{ gridTemplateColumns: "minmax(0,1fr)" }}>
                     <div className="meta"><Avatar id={t.assignee_id} name={t.assignee_name} /><b>{t.title}</b><span className="ref">{pr.done}/{pr.total}</span></div>
-                    <div className="meta"><Source s={t.source} only /><span>{t.last_update}</span><span>· {ago(t.last_update_at)}</span><span className={`tag s-${t.status}`}>{TASK_STATUS[t.status]}</span></div>
+                    <div className="meta"><Source s={t.last_update_source ?? t.source} only /><span>{t.last_update}</span><span>· {ago(t.last_update_at)}</span><span className={`tag s-${t.status}`}>{TASK_STATUS[t.status]}</span></div>
                   </Link>
                 );
               })}

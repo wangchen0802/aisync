@@ -2,6 +2,7 @@ import "server-only";
 import { one, q, tx } from "@/lib/db";
 import { aiEnabled, distillHeuristic, distillWithAI, findRelations, redact, type Distilled } from "@/lib/ai";
 import { code, DECISION_STATUS, type Subtask, TASK_STATUS } from "@/lib/meta";
+import { notify } from "@/lib/notify";
 
 export type Actor = { id: number; name: string; email: string; role: string };
 
@@ -13,14 +14,16 @@ export type ItemRow = {
   project_id: number | null; project_name: string | null; project_color: string | null;
   conversation_id: number | null; source: string; due: string | null; subtasks: Subtask[];
   conflict_with: number | null; superseded_by: number | null; blocked_by: number | null; duplicate_of: number | null;
-  last_update: string | null; last_update_at: string | null; created_at: string; updated_at: string;
+  last_update: string | null; last_update_at: string | null; last_update_source: string | null; created_at: string; updated_at: string;
   acks: AckRow[];
+  comment_count: number;
 };
 
 const ITEM_SELECT = `
   select i.*, o.name as owner_name, a.name as assignee_name, p.name as project_name, p.color as project_color,
     coalesce((select json_agg(json_build_object('user_id', k.user_id, 'name', u.name, 'verdict', k.verdict, 'comment', k.comment) order by k.created_at)
-              from acks k join users u on u.id = k.user_id where k.item_id = i.id), '[]'::json) as acks
+              from acks k join users u on u.id = k.user_id where k.item_id = i.id), '[]'::json) as acks,
+    (select count(*)::int from comments cm where cm.item_id = i.id) as comment_count
   from items i
   left join users o on o.id = i.owner_id
   left join users a on a.id = i.assignee_id
@@ -67,8 +70,45 @@ export async function listMembers() {
 
 /* ───────────── ingest ───────────── */
 
-export async function ingestConversation(actor: Actor, input: { source: string; title?: string; url?: string; text: string; projectId?: number | null }) {
-  const { text, masked } = redact(input.text.slice(0, 400_000));
+function normKey(url?: string) {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    return `${u.host}${u.pathname}`.replace(/\/+$/, "");
+  } catch {
+    return url.slice(0, 300);
+  }
+}
+
+export type IngestResult = { id: number; items: number; updates: number; engine: string; masked: number; unchanged?: boolean; published: number; auto: boolean };
+
+export async function ingestConversation(
+  actor: Actor,
+  input: { source: string; title?: string; url?: string; externalKey?: string; text: string; projectId?: number | null },
+): Promise<IngestResult> {
+  const { text: full, masked } = redact(input.text.slice(0, 400_000));
+  const key = input.externalKey?.slice(0, 300) || normKey(input.url);
+
+  // Re-syncing the same conversation only processes what is new since the last sync.
+  let text = full;
+  let previous: { id: number; raw_text: string; project_id: number | null } | null = null;
+  let known: string[] = [];
+  if (key) {
+    previous = await one("select id, raw_text, project_id from conversations where user_id = $1 and external_key = $2 order by id desc limit 1", [actor.id, key]);
+    if (previous) {
+      const seen = new Set(previous.raw_text.split("\n").map((l) => l.trim()).filter(Boolean));
+      const fresh = full.split("\n").filter((l) => l.trim() && !seen.has(l.trim())).join("\n");
+      if (fresh.replace(/\s|【[^】]{0,8}】|-{3,}/g, "").length < 30) {
+        return { id: previous.id, items: 0, updates: 0, engine: "none", masked, unchanged: true, published: 0, auto: false };
+      }
+      text = fresh;
+      known = (await q<{ title: string }>(
+        "select i.title from items i join conversations c on c.id = i.conversation_id where c.user_id = $1 and c.external_key = $2 limit 60",
+        [actor.id, key],
+      )).map((r) => r.title);
+    }
+  }
+
   const projects = await listProjects();
   const members = await listMembers();
   const openTasks = await q<{ id: number; title: string; subtasks: Subtask[] }>(
@@ -85,6 +125,7 @@ export async function ingestConversation(actor: Actor, input: { source: string; 
         projects: projects.map((p) => ({ name: p.name, description: p.description })),
         openTasks: openTasks.map((t) => ({ id: t.id, title: t.title, subtasks: t.subtasks.map((s) => s.title) })),
         members: members.map((m) => m.name),
+        known,
       });
     } catch (e) {
       console.error("distill failed, using heuristic", e);
@@ -95,15 +136,19 @@ export async function ingestConversation(actor: Actor, input: { source: string; 
     result = distillHeuristic(text, input.title);
     engine = "rules";
   }
+  if (known.length) {
+    const k = new Set(known.map((t) => t.trim()));
+    result.items = result.items.filter((i) => !k.has(i.title.trim()));
+  }
 
-  const projectId = input.projectId ?? projects.find((p) => p.name === result.project)?.id ?? null;
+  const projectId = input.projectId ?? projects.find((p) => p.name === result.project)?.id ?? previous?.project_id ?? null;
   const validTaskIds = new Set(openTasks.map((t) => t.id));
 
-  return tx(async (run) => {
+  const out = await tx(async (run) => {
     const [conv] = await run<{ id: number }>(
-      `insert into conversations (user_id, source, title, url, raw_text, summary, project_id, engine, sensitive)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9) returning id`,
-      [actor.id, input.source, (input.title || result.title || "未命名对话").slice(0, 120), input.url ?? null, text, result.summary, projectId, engine, masked > 0],
+      `insert into conversations (user_id, source, title, url, raw_text, summary, project_id, engine, sensitive, external_key)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) returning id`,
+      [actor.id, input.source, (input.title || result.title || "未命名对话").slice(0, 120), input.url ?? null, full, result.summary, projectId, engine, masked > 0, key],
     );
     for (const it of result.items) {
       await run(
@@ -117,6 +162,7 @@ export async function ingestConversation(actor: Actor, input: { source: string; 
         ],
       );
     }
+    let updates = 0;
     for (const u of result.task_updates) {
       if (!validTaskIds.has(u.task_id)) continue;
       const task = openTasks.find((t) => t.id === u.task_id)!;
@@ -125,10 +171,23 @@ export async function ingestConversation(actor: Actor, input: { source: string; 
          values ('update', $1, $2, $3, 'draft', 'draft', $4, $5, $6, $7)`,
         [task.title, u.note, JSON.stringify({ task_id: u.task_id, done_subtasks: u.done_subtasks, new_status: u.status, note: u.note }), actor.id, projectId, conv.id, input.source],
       );
+      updates++;
     }
     await run("update users set last_ingest_at = now() where id = $1", [actor.id]);
-    return { id: conv.id, items: result.items.length, updates: result.task_updates.length, engine, masked };
+    return { id: conv.id, items: result.items.length, updates, engine, masked, published: 0, auto: false };
   });
+
+  // Auto-publish: everything except sensitive items goes straight to the team; the rest waits in the inbox.
+  const auto = (await one<{ auto_publish: boolean }>("select auto_publish from users where id = $1", [actor.id]))?.auto_publish;
+  if (auto && out.items + out.updates > 0) {
+    const drafts = await draftsOf(out.id);
+    const picks = drafts.map((d) => ({ id: d.id, include: !d.details.sensitive }));
+    if (picks.some((p) => p.include)) {
+      const r = await publishConversation(actor, out.id, picks, projectId, { keepExcluded: true });
+      return { ...out, published: r.published, auto: true };
+    }
+  }
+  return out;
 }
 
 /* ───────────── inbox ───────────── */
@@ -163,18 +222,20 @@ async function findMember(name: string | undefined) {
   return row?.id ?? null;
 }
 
-export async function publishConversation(actor: Actor, convId: number, picks: Pick[], projectId: number | null) {
+export async function publishConversation(actor: Actor, convId: number, picks: Pick[], projectId: number | null, opts: { keepExcluded?: boolean } = {}) {
   const conv = await one<ConversationRow & { raw_text: string }>("select * from conversations where id = $1 and user_id = $2", [convId, actor.id]);
   if (!conv) throw new Error("找不到这段对话");
   const drafts = await draftsOf(convId);
   const byId = new Map(picks.map((p) => [p.id, p]));
   const fresh: ItemRow[] = [];
   let published = 0;
+  let kept = 0;
 
   for (const d of drafts) {
     const p = byId.get(d.id);
     if (!p?.include) {
-      await q("delete from items where id = $1", [d.id]);
+      if (opts.keepExcluded) kept++;
+      else await q("delete from items where id = $1", [d.id]);
       continue;
     }
     if (d.kind === "update") {
@@ -195,8 +256,8 @@ export async function publishConversation(actor: Actor, convId: number, picks: P
     published++;
   }
 
-  await q("update conversations set status = 'published', project_id = $2 where id = $1", [convId, projectId]);
-  await logEvent(actor.id, "publish", conv.summary || conv.title, null, convId);
+  await q("update conversations set status = $3, project_id = $2 where id = $1", [convId, projectId, kept ? "pending" : "published"]);
+  if (published) await logEvent(actor.id, "publish", conv.summary || conv.title, null, convId);
 
   // Conflict & duplicate detection against the existing team record.
   const candidates = fresh.filter((f) => f.kind === "decision" || f.kind === "task");
@@ -223,7 +284,27 @@ export async function publishConversation(actor: Actor, convId: number, picks: P
     }
   }
   for (const c of candidates.filter((c) => c.kind === "decision")) await checkConfirm(c.id, actor);
-  return { published };
+
+  // One compact message per publish, so channels stay quiet.
+  const decided = await q<{ id: number; title: string; status: string; conflict_with: number | null; reason: string | null }>(
+    "select id, title, status, conflict_with, details->>'reason' as reason from items where id = any($1::int[]) and kind = 'decision'",
+    [candidates.map((c) => c.id)],
+  );
+  const conflicts = decided.filter((d) => d.status === "conflict");
+  const pendingAck = decided.filter((d) => d.status === "discussing");
+  const lines = [
+    ...conflicts.map((d) => `⚠️ ${code("decision", d.id)} ${d.title} —— 与 ${code("decision", d.conflict_with ?? 0)} 冲突${d.reason ? `：${d.reason}` : ""}`),
+    ...pendingAck.map((d) => `• ${code("decision", d.id)} ${d.title}`),
+  ];
+  if (lines.length) {
+    const first = conflicts[0] ?? pendingAck[0];
+    await notify(
+      conflicts.length ? `${actor.name} 的新决策和已有共识冲突，需要大家看一下` : `${actor.name} 提出了 ${pendingAck.length} 条决策，等待确认`,
+      lines,
+      `/item/${first.id}`,
+    );
+  }
+  return { published, kept };
 }
 
 async function applyTaskUpdate(actor: Actor, d: ItemRow) {
@@ -238,7 +319,7 @@ async function applyTaskUpdate(actor: Actor, d: ItemRow) {
   if (subtasks.length && subtasks.every((s) => s.done)) status = "done";
   const note = d.details.note || d.body || "有新进展";
   await q(
-    "update items set subtasks = $2, status = $3, last_update = $4, last_update_at = now(), updated_at = now(), source = $5 where id = $1",
+    "update items set subtasks = $2, status = $3, last_update = $4, last_update_at = now(), updated_at = now(), last_update_source = $5 where id = $1",
     [taskId, JSON.stringify(subtasks), status, note, d.source],
   );
   await logEvent(actor.id, "task_progress", note, taskId);
@@ -274,11 +355,17 @@ export async function checkConfirm(itemId: number, actor: Actor) {
 export async function confirmDecision(itemId: number, actor: Actor) {
   await q("update items set status = 'confirmed', conflict_with = null, updated_at = now() where id = $1", [itemId]);
   const unblocked = await q<{ id: number }>(
-    "update items set status = 'doing', blocked_by = null, last_update = $2, last_update_at = now(), updated_at = now() where blocked_by = $1 and status = 'blocked' returning id",
+    "update items set status = 'doing', blocked_by = null, last_update = $2, last_update_at = now(), last_update_source = 'manual', updated_at = now() where blocked_by = $1 and status = 'blocked' returning id",
     [itemId, `依赖的 ${code("decision", itemId)} 已达成共识`],
   );
   const item = await getItem(itemId);
   await logEvent(actor.id, "confirm", `${item?.title ?? ""} 已达成共识${unblocked.length ? `，解除了 ${unblocked.length} 个任务的阻塞` : ""}`, itemId);
+  if (item && (item.acks.length > 1 || unblocked.length)) {
+    await notify(`✅ 达成共识：${code("decision", itemId)} ${item.title}`, [
+      `确认：${item.acks.filter((a) => a.verdict === "agree").map((a) => a.name).join("、")}`,
+      ...(unblocked.length ? [`解除了 ${unblocked.length} 个任务的阻塞`] : []),
+    ], `/item/${itemId}`);
+  }
 }
 
 export async function ack(actor: Actor, itemId: number, verdict: "agree" | "object", comment?: string) {
@@ -332,7 +419,7 @@ export async function moveTask(actor: Actor, taskId: number, status: string) {
   if (!task) throw new Error("找不到任务");
   const subtasks = status === "done" ? task.subtasks.map((s) => ({ ...s, done: true })) : task.subtasks;
   await q(
-    `update items set status = $2, subtasks = $3, last_update = $4, last_update_at = now(), updated_at = now(),
+    `update items set status = $2, subtasks = $3, last_update = $4, last_update_at = now(), updated_at = now(), last_update_source = 'manual',
        blocked_by = case when $2 = 'blocked' then blocked_by else null end where id = $1`,
     [taskId, status, JSON.stringify(subtasks), `${actor.name} 移到「${TASK_STATUS[status]}」`],
   );
@@ -346,7 +433,7 @@ export async function setSubtasks(actor: Actor, taskId: number, subtasks: Subtas
   if (subtasks.length && subtasks.every((s) => s.done)) status = "done";
   else if (status === "todo" && subtasks.some((s) => s.done)) status = "doing";
   else if (status === "done" && subtasks.some((s) => !s.done)) status = "doing";
-  await q("update items set subtasks = $2, status = $3, updated_at = now(), last_update = $4, last_update_at = now() where id = $1", [
+  await q("update items set subtasks = $2, status = $3, updated_at = now(), last_update = $4, last_update_at = now(), last_update_source = 'manual' where id = $1", [
     taskId, JSON.stringify(subtasks.slice(0, 20)), status, `${actor.name} 更新了子任务`,
   ]);
 }
@@ -422,4 +509,43 @@ export async function contextPack(me: number, projectId?: number | null) {
   return `## ${ws}${project ? ` · ${project.name}` : ""} 团队上下文（${new Date().toISOString().slice(0, 10)}）
 ${project?.description ? `\n${project.description}\n` : ""}${sec("已确认的共识", confirmed)}${sec("讨论中的决策", pending)}${sec("进行中的任务", tasks)}${sec("待定问题", questions)}
 回答时请遵循以上团队共识；如果你的建议与某条共识冲突，请明确指出编号。`.trim();
+}
+
+/* ───────────── discussion ───────────── */
+
+export type CommentRow = { id: number; item_id: number; user_id: number | null; name: string | null; image: string | null; body: string; created_at: string };
+
+export async function listComments(itemId: number) {
+  return q<CommentRow>(
+    "select c.id, c.item_id, c.user_id, u.name, u.image, c.body, c.created_at from comments c left join users u on u.id = c.user_id where c.item_id = $1 order by c.created_at",
+    [itemId],
+  );
+}
+
+export async function addComment(actor: Actor, itemId: number, body: string) {
+  const text = body.trim().slice(0, 2000);
+  if (!text) throw new Error("评论不能为空");
+  const item = await getItem(itemId);
+  if (!item) throw new Error("找不到条目");
+  await q("insert into comments (item_id, user_id, body) values ($1, $2, $3)", [itemId, actor.id, text]);
+  await q("update items set updated_at = now() where id = $1", [itemId]);
+  await logEvent(actor.id, "comment", text, itemId);
+}
+
+/* ───────────── "since your last visit" ───────────── */
+
+/** Returns the start of the user's previous session and records this visit. */
+export async function sinceLastVisit(userId: number): Promise<string> {
+  const row = await one<{ seen_at: string | null; prev_seen_at: string | null }>("select seen_at, prev_seen_at from users where id = $1", [userId]);
+  const now = Date.now();
+  if (!row?.seen_at) {
+    await q("update users set seen_at = now(), prev_seen_at = now() - interval '1 day' where id = $1", [userId]);
+    return new Date(now - 864e5).toISOString();
+  }
+  if (now - new Date(row.seen_at).getTime() > 30 * 60_000) {
+    await q("update users set prev_seen_at = seen_at, seen_at = now() where id = $1", [userId]);
+    return row.seen_at;
+  }
+  await q("update users set seen_at = now() where id = $1", [userId]);
+  return row.prev_seen_at ?? new Date(now - 864e5).toISOString();
 }

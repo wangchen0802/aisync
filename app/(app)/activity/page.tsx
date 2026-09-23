@@ -17,7 +17,8 @@ const VERB: Record<string, string> = {
   create: "新建了", task_progress: "推进了任务", task_move: "移动了任务", reopen: "重新打开讨论",
 };
 
-export default async function Activity() {
+export default async function Activity({ searchParams }: { searchParams: Promise<{ synced?: string }> }) {
+  const synced = Number((await searchParams).synced);
   const me = await requireUser();
   const events = await q<Ev>(
     `select e.id, e.type, e.text, e.created_at, e.user_id, u.name as user_name, u.image,
@@ -48,6 +49,7 @@ export default async function Activity() {
           <p>谁在用 AI 推进什么。这里只显示本人发布的结论和进展，原始对话不会公开。</p>
         </div>
       </div>
+      {synced ? <div className="note" style={{ color: "var(--green)", background: "var(--green-bg)", borderColor: "transparent" }}>✓ 已自动发布 {synced} 条到团队</div> : null}
       <section className="box">
         {events.length ? [...groups.entries()].map(([day, evs]) => (
           <div key={day}>
@@ -75,7 +77,7 @@ export default async function Activity() {
                   ) : (
                     <p>
                       {e.item_id && e.item_kind ? (
-                        <Link className="link" style={{ fontSize: 13 }} href={e.item_kind === "task" ? `/tasks#T-${e.item_id}` : `/consensus?s=all#${code(e.item_kind, e.item_id)}`}>{code(e.item_kind, e.item_id)}</Link>
+                        <Link className="link" style={{ fontSize: 13 }} href={`/item/${e.item_id}`}>{code(e.item_kind, e.item_id)}</Link>
                       ) : null}{" "}
                       {e.type === "create" || e.type === "task_progress" ? `${e.item_title ?? ""}${e.type === "task_progress" ? `：${e.text}` : ""}` : e.text}
                     </p>

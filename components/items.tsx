@@ -17,7 +17,7 @@ export function Acks({ item, threshold }: { item: ItemRow; threshold: number }) 
   );
 }
 
-export function DecisionRow({ item, me, threshold, other }: { item: ItemRow; me: Me; threshold: number; other?: ItemRow | null }) {
+export function DecisionRow({ item, me, threshold, other, since }: { item: ItemRow; me: Me; threshold: number; other?: ItemRow | null; since?: string }) {
   const mine = item.acks.find((a) => a.user_id === me.id);
   const canForce = item.owner_id === me.id || me.role === "admin";
   const objections = item.acks.filter((a) => a.verdict === "object");
@@ -25,7 +25,12 @@ export function DecisionRow({ item, me, threshold, other }: { item: ItemRow; me:
   return (
     <article className={`it ${item.status}`} id={ref} data-x>
       <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
-        <h3><span className="ref">{ref}</span>{item.kind !== "decision" ? <span className={`kind k-${item.kind}`}>{KIND_LABEL[item.kind as Kind]}</span> : null}{item.title}</h3>
+        <h3>
+          <span className="ref">{ref}</span>
+          {item.kind !== "decision" ? <span className={`kind k-${item.kind}`}>{KIND_LABEL[item.kind as Kind]}</span> : null}
+          <Link href={`/item/${item.id}`} className="title-link">{item.title}</Link>
+          {since && item.updated_at > since && item.owner_id !== me.id ? <span className="new-dot">新</span> : null}
+        </h3>
         {item.body ? <div className="d-std"><p className="why">{item.body}</p></div> : null}
         <div className="meta">
           <Avatar id={item.owner_id} name={item.owner_name} />
@@ -75,6 +80,7 @@ export function DecisionRow({ item, me, threshold, other }: { item: ItemRow; me:
         {item.kind === "question" && item.status === "open" ? <ActionButton action={resolveQuestion.bind(null, item.id)}>标记已解决</ActionButton> : null}
         {item.status === "superseded" && item.superseded_by ? <span className="meta">已被 <Link className="link" href={`#${code("decision", item.superseded_by)}`}>{code("decision", item.superseded_by)}</Link> 取代</span> : null}
         {item.kind === "decision" && (item.status === "confirmed" || item.status === "superseded") && canForce ? <ActionButton className="btn sm ghost" action={reopenDecision.bind(null, item.id)}>重新讨论</ActionButton> : null}
+        <Link className="more" href={`/item/${item.id}#discuss`}><Icon name="chat" className="i sm" />{item.comment_count ? `${item.comment_count} 条讨论` : "讨论"}</Link>
         <CopyButton className="link" label="引用到我的 AI" text={`[团队共识 ${ref}] ${item.title}${item.body ? `。理由：${item.body}` : ""}`} done="已复制，可以粘贴到任何 AI 对话里" />
       </div>
 

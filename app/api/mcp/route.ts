@@ -99,7 +99,7 @@ async function callTool(me: Actor, name: string, a: Record<string, unknown>, cli
       const subs: Subtask[] = task.subtasks.map((s) => (done.has(s.title.trim()) ? { ...s, done: true } : s));
       const note = a.note ? String(a.note) : null;
       await q(
-        "update items set subtasks = $2, last_update = coalesce($3, last_update), last_update_at = now(), updated_at = now(), source = $4, status = case when status = 'todo' then 'doing' else status end where id = $1",
+        "update items set subtasks = $2, last_update = coalesce($3, last_update), last_update_at = now(), updated_at = now(), last_update_source = $4, status = case when status = 'todo' then 'doing' else status end where id = $1",
         [id, JSON.stringify(subs), note, src],
       );
       if (note) await logEvent(me.id, "task_progress", note, id);
@@ -108,7 +108,7 @@ async function callTool(me: Actor, name: string, a: Record<string, unknown>, cli
     }
     case "sync_conversation": {
       const r = await ingestConversation(me, { source: src, title: a.title ? String(a.title) : undefined, text: String(a.text ?? "") });
-      return `已发送到收件箱（提炼出 ${r.items} 条，${r.updates} 个任务进度），请在这里审核发布：${origin}/inbox?c=${r.id}`;
+      return r.unchanged ? "没有新内容需要同步。" : r.auto ? `已自动发布 ${r.published} 条到团队：${origin}/activity` : `已发送到收件箱（提炼出 ${r.items} 条，${r.updates} 个任务进度），请在这里审核发布：${origin}/inbox?c=${r.id}`;
     }
     default:
       throw new Error(`unknown tool ${name}`);

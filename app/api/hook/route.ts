@@ -40,12 +40,12 @@ try {
   const res = await fetch(SIMREAL_URL + "/api/ingest", {
     method: "POST",
     headers: { authorization: "Bearer " + SIMREAL_TOKEN, "content-type": "application/json" },
-    body: JSON.stringify({ source: "claudecode", title: \`Claude Code · \${project}\`, text: text.slice(-300000) }),
+    body: JSON.stringify({ source: "claudecode", title: \`Claude Code · \${project}\`, external_key: input.session_id ? "claudecode:" + input.session_id : undefined, text: text.slice(-300000) }),
     signal: AbortSignal.timeout(55000),
   });
   if (res.ok) {
     const d = await res.json();
-    console.error(\`SimReal: 已同步，提炼出 \${d.items} 条 → \${d.review_url}\`);
+    console.error(\`SimReal: \${d.message} → \${d.auto ? d.team_url : d.review_url}\`);
   }
 } catch {
   // Never block Claude Code on sync errors.

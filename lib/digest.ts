@@ -68,22 +68,20 @@ export async function buildDigest(hours = 24): Promise<Digest> {
   };
 }
 
-export function digestText(d: Digest, baseUrl?: string) {
-  const parts = [`*${d.workspace} 每日简报 · ${d.date}*`, d.headline, ""];
+export function digestLines(d: Digest) {
+  const lines: string[] = [d.headline, ""];
   for (const s of d.sections) {
-    parts.push(`*${s.project}*`);
-    for (const l of s.lines) parts.push(`• [${LABEL[l.tone]}] ${l.text}${l.who ? `（${l.who}）` : ""} \`${l.ref}\``);
-    parts.push("");
+    lines.push(`【${s.project}】`);
+    for (const l of s.lines) lines.push(`• [${LABEL[l.tone]}] ${l.text}${l.who ? `（${l.who}）` : ""} ${l.ref}`);
+    lines.push("");
   }
-  if (baseUrl) parts.push(`<${baseUrl}|打开 ${d.workspace} Sync>`);
-  return parts.join("\n");
+  return lines;
 }
 
-export async function digestToSlack(d: Digest, baseUrl?: string) {
-  const url = process.env.SLACK_WEBHOOK_URL;
-  if (!url) throw new Error("SLACK_WEBHOOK_URL 未配置");
-  const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: digestText(d, baseUrl) }) });
-  if (!res.ok) throw new Error(`Slack 返回 ${res.status}`);
+/** Pushes the digest to every configured channel (Slack / 飞书 / 企业微信). */
+export async function pushDigest(d: Digest) {
+  const { notifyStrict } = await import("@/lib/notify");
+  return notifyStrict(`${d.workspace} 每日简报 · ${d.date}`, digestLines(d), "/digest");
 }
 
 export { LABEL as DIGEST_LABEL };

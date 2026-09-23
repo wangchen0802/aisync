@@ -7,6 +7,8 @@ import { archiveProject, removeMember, setMemberRole } from "@/lib/actions";
 import { ActionButton } from "@/components/client";
 import { InviteForm, ProfileForm, ProjectForm, WorkspaceForm } from "@/components/settings-forms";
 import { Avatar } from "@/components/ui";
+import { AutoPublishToggle, NotifyForm } from "@/components/prefs";
+import { one } from "@/lib/db";
 
 export const metadata = { title: "设置" };
 
@@ -23,6 +25,8 @@ export default async function Settings() {
   const me = await requireUser();
   const [projects, members, ws, threshold] = await Promise.all([listProjects(true), listMembers(), getSetting("workspace_name", "SimReal"), getSetting("ack_threshold", "2")]);
   const admin = me.role === "admin";
+  const [notifySlack, notifyFeishu, notifyWecom] = await Promise.all([getSetting("notify_slack", ""), getSetting("notify_feishu", ""), getSetting("notify_wecom", "")]);
+  const auto = (await one<{ auto_publish: boolean }>("select auto_publish from users where id = $1", [me.id]))?.auto_publish ?? false;
   return (
     <>
       <div className="ph"><div><h1>设置</h1><p>工作区、项目、成员和部署状态。</p></div></div>
@@ -37,6 +41,16 @@ export default async function Settings() {
           <div className="pad"><WorkspaceForm name={ws} threshold={Number(threshold) || 2} disabled={!admin} /></div>
         </section>
       </div>
+
+      <section className="box">
+        <div className="box-h"><h2>我的同步方式</h2></div>
+        <div className="pad"><AutoPublishToggle on={auto} /></div>
+      </section>
+
+      <section className="box" id="notify">
+        <div className="box-h"><h2>团队通知</h2><span className="c">{admin ? "新决策待确认、冲突、达成共识、每日简报" : "仅管理员可修改"}</span></div>
+        <div className="pad"><NotifyForm slack={notifySlack} feishu={notifyFeishu} wecom={notifyWecom} disabled={!admin} /></div>
+      </section>
 
       <section className="box" id="projects">
         <div className="box-h"><h2>项目 <span className="c">{projects.filter((p) => !p.archived).length}</span></h2></div>
@@ -88,7 +102,8 @@ export default async function Settings() {
           <Check ok={authProviders.passcode} label="团队口令登录" hint="TEAM_PASSCODE" />
           <Check ok={Boolean(process.env.ALLOWED_EMAIL_DOMAINS)} label="允许的邮箱域名" hint={process.env.ALLOWED_EMAIL_DOMAINS || "ALLOWED_EMAIL_DOMAINS，例如 simreal.ai"} />
           <Check ok={aiEnabled()} label="AI 提炼（Claude）" hint={`ANTHROPIC_API_KEY · 模型 ${process.env.ANTHROPIC_MODEL || "claude-opus-5"}`} />
-          <Check ok={Boolean(process.env.SLACK_WEBHOOK_URL)} label="Slack 每日简报" hint="SLACK_WEBHOOK_URL + CRON_SECRET" />
+          <Check ok={Boolean(notifySlack || notifyFeishu || notifyWecom || process.env.SLACK_WEBHOOK_URL)} label="团队通知渠道" hint="在上方「团队通知」里配置飞书 / 企业微信 / Slack" />
+          <Check ok={Boolean(process.env.CRON_SECRET)} label="每日简报定时推送" hint="CRON_SECRET（工作日 18:00 北京时间）" />
         </div>
       </section>
     </>

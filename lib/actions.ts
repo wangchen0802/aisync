@@ -7,7 +7,8 @@ import { requireUser } from "@/lib/session";
 import * as core from "@/lib/core";
 import { one, q } from "@/lib/db";
 import { aiEnabled, askWithAI } from "@/lib/ai";
-import { buildDigest, digestToSlack } from "@/lib/digest";
+import { buildDigest, pushDigest } from "@/lib/digest";
+import { notifyStrict } from "@/lib/notify";
 import { PROJECT_COLORS, type Subtask } from "@/lib/meta";
 import { signOut } from "@/auth";
 
@@ -32,7 +33,7 @@ export async function importConversation(_: unknown, form: FormData): Promise<Re
   const text = String(form.get("text") ?? "").trim();
   if (text.length < 20) return { ok: false, error: "对话内容太短了，至少粘贴几轮对话。" };
   const projectId = Number(form.get("projectId")) || null;
-  let convId = 0;
+  let result: core.IngestResult | null = null;
   const res = await run(async () => {
     const r = await core.ingestConversation(me, {
       source: String(form.get("source") || "other"),
@@ -41,10 +42,15 @@ export async function importConversation(_: unknown, form: FormData): Promise<Re
       text,
       projectId,
     });
-    convId = r.id;
+    result = r;
   });
   if (!res.ok) return res;
-  redirect(`/inbox?c=${convId}`);
+  const r = result as core.IngestResult | null;
+  if (!r) return { ok: false, error: "导入失败，请重试" };
+  if (r.unchanged) return { ok: false, error: "这段对话之前已经同步过，没有新内容。" };
+  const pending = r.items + r.updates - r.published;
+  if (r.auto && pending <= 0) redirect(`/activity?synced=${r.published}`);
+  redirect(`/inbox?c=${r.id}`);
 }
 
 export async function publishConversation(convId: number, picks: core.Pick[], projectId: number | null) {
@@ -86,6 +92,7 @@ export async function object(itemId: number, comment: string) {
   const me = await requireUser();
   return run(async () => {
     await core.ack(me, itemId, "object", comment.slice(0, 300));
+    await core.addComment(me, itemId, `提出异议：${comment.slice(0, 300)}`);
     return "已记录异议，创建者会看到";
   });
 }
@@ -193,9 +200,44 @@ export async function askTeam(question: string): Promise<{ answer: string; ai: b
 export async function sendDigest() {
   await requireUser();
   return run(async () => {
-    if (!process.env.SLACK_WEBHOOK_URL) throw new Error("还没有配置 SLACK_WEBHOOK_URL");
-    await digestToSlack(await buildDigest());
-    return "已推送到 Slack";
+    const channels = await pushDigest(await buildDigest());
+    return `已推送到 ${channels.map((c) => ({ slack: "Slack", feishu: "飞书", wecom: "企业微信" })[c]).join("、")}`;
+  });
+}
+
+export async function saveNotifications(input: { slack: string; feishu: string; wecom: string }) {
+  const me = await requireUser();
+  return run(async () => {
+    if (me.role !== "admin") throw new Error("只有管理员可以修改通知设置");
+    for (const [k, v] of Object.entries(input)) {
+      const url = v.trim();
+      if (url && !/^https:\/\//.test(url)) throw new Error("Webhook 地址需要以 https:// 开头");
+      await core.setSetting(`notify_${k}`, url);
+    }
+    return "通知设置已保存";
+  });
+}
+
+export async function testNotification() {
+  const me = await requireUser();
+  return run(async () => {
+    const on = await notifyStrict("SimReal Sync 通知测试", [`${me.name} 刚刚测试了团队通知。之后新决策、冲突、达成共识和每日简报都会发到这里。`], "/");
+    return `测试消息已发送（${on.length} 个渠道）`;
+  });
+}
+
+export async function setAutoPublish(on: boolean) {
+  const me = await requireUser();
+  return run(async () => {
+    await q("update users set auto_publish = $2 where id = $1", [me.id, on]);
+    return on ? "已开启自动发布：同步后直接发给团队，敏感内容仍会留在收件箱" : "已关闭自动发布：同步的内容先进收件箱";
+  });
+}
+
+export async function addComment(itemId: number, body: string) {
+  const me = await requireUser();
+  return run(async () => {
+    await core.addComment(me, itemId, body);
   });
 }
 

@@ -10,7 +10,7 @@ type Answer = Awaited<ReturnType<typeof askTeam>>;
 const SUGGEST = ["我们最近做了哪些技术决策？", "谁在负责什么？", "还有哪些问题没定？", "有哪些任务被阻塞了？"];
 
 function hrefOf(kind: string, id: number) {
-  return kind === "task" ? `/tasks#T-${id}` : `/consensus?s=all#${code(kind, id)}`;
+  return `/item/${id}`;
 }
 
 function Rich({ text }: { text: string }) {

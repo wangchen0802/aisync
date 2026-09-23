@@ -307,7 +307,7 @@ export function CommandPalette() {
     ...hits.map((h) => ({
       group: "共识与任务", key: `h${h.id}`,
       node: <><Icon name={h.kind === "task" ? "task" : "cons"} /><span className="ref">{code(h.kind, h.id)}</span><span className="t">{h.title}</span><small>{h.kind === "task" ? TASK_STATUS[h.status] : DECISION_STATUS[h.status] ?? ""}{h.owner ? ` · ${h.owner}` : ""}</small></>,
-      run: () => router.push(h.kind === "task" ? `/tasks#T-${h.id}` : `/consensus?s=all#${code(h.kind, h.id)}`),
+      run: () => router.push(`/item/${h.id}`),
     })),
     ...nav.map(([href, l, i]) => ({ group: "跳转", key: href, node: <><Icon name={i} /><span className="t">{l}</span></>, run: () => router.push(href) })),
   ];
@@ -373,10 +373,11 @@ const TITLES: Record<string, string> = Object.fromEntries(NAV_ITEMS.map(([href, 
 export function Crumb({ ws }: { ws: string }) {
   const path = usePathname();
   const key = "/" + (path.split("/")[1] ?? "");
+  const label = key === "/" ? "总览" : key === "/item" ? `#${path.split("/")[2] ?? ""}` : TITLES[key];
   return (
     <div className="crumb">
       {ws}
-      {key !== "/" && TITLES[key] ? <><Icon name="chev" className="i sm" /><b>{TITLES[key]}</b></> : <><Icon name="chev" className="i sm" /><b>总览</b></>}
+      {label ? <><Icon name="chev" className="i sm" /><b>{label}</b></> : null}
     </div>
   );
 }

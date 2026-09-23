@@ -87,6 +87,20 @@ create table if not exists settings (
   key text primary key,
   value text not null
 );
+create table if not exists comments (
+  id serial primary key,
+  item_id int references items(id) on delete cascade,
+  user_id int references users(id) on delete set null,
+  body text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists comments_item_idx on comments(item_id, created_at);
+alter table users add column if not exists auto_publish boolean not null default false;
+alter table users add column if not exists seen_at timestamptz;
+alter table users add column if not exists prev_seen_at timestamptz;
+alter table conversations add column if not exists external_key text;
+alter table items add column if not exists last_update_source text;
+create index if not exists conversations_key_idx on conversations(user_id, external_key);
 `;
 
 const g = globalThis as unknown as { __simrealPool?: Pool; __simrealSchema?: Promise<void> };

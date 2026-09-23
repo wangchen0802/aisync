@@ -3,6 +3,7 @@ import { buildDigest, DIGEST_LABEL } from "@/lib/digest";
 import { sendDigest } from "@/lib/actions";
 import { ActionButton } from "@/components/client";
 import { Icon, Source } from "@/components/ui";
+import { hasWebhook } from "@/lib/notify";
 
 export const metadata = { title: "每日简报" };
 
@@ -13,15 +14,15 @@ const TONE: Record<string, string> = {
 export default async function Digest() {
   await requireUser();
   const d = await buildDigest();
-  const slack = Boolean(process.env.SLACK_WEBHOOK_URL);
+  const slack = await hasWebhook();
   return (
     <>
       <div className="ph">
         <div>
           <h1>每日简报</h1>
-          <p>根据过去 24 小时的共识和任务进展自动生成。{slack ? "工作日 18:00（北京时间）自动推送到 Slack。" : "配置 SLACK_WEBHOOK_URL 后，工作日 18:00 会自动推送到 Slack。"}</p>
+          <p>根据过去 24 小时的共识和任务进展自动生成。{slack ? "工作日 18:00（北京时间）自动推送到团队群。" : "在「设置 → 团队通知」里配置飞书 / 企业微信 / Slack 后，工作日 18:00 会自动推送到群里。"}</p>
         </div>
-        {slack ? <ActionButton className="btn" action={sendDigest}><Icon name="arrow" />立即推送到 Slack</ActionButton> : null}
+        {slack ? <ActionButton className="btn" action={sendDigest}><Icon name="arrow" />立即推送到群</ActionButton> : null}
       </div>
       <article className="box dg">
         <div>

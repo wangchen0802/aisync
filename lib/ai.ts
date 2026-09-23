@@ -75,6 +75,7 @@ export type DistillContext = {
   projects: { name: string; description: string }[];
   openTasks: { id: number; title: string; subtasks: string[] }[];
   members: string[];
+  known?: string[];
 };
 
 const DISTILL_SYSTEM = `你是创业团队的"共识秘书"。团队成员会把他们和各种 AI（ChatGPT、Claude、DeepSeek、Gemini、Grok、Cursor 等）的对话交给你。
@@ -106,7 +107,7 @@ export async function distillWithAI(text: string, ctx: DistillContext): Promise<
     messages: [
       {
         role: "user",
-        content: `团队项目：\n${projects}\n\n团队成员：${ctx.members.join("、") || "（未知）"}\n\n作者进行中的任务：\n${tasks}\n\n<conversation>\n${text}\n</conversation>`,
+        content: `团队项目：\n${projects}\n\n团队成员：${ctx.members.join("、") || "（未知）"}\n\n作者进行中的任务：\n${tasks}${ctx.known?.length ? `\n\n这段对话之前已经同步过，下面是已经记录过的结论，不要重复提炼：\n${ctx.known.map((k) => `- ${k}`).join("\n")}` : ""}\n\n<conversation>\n${text}\n</conversation>`,
       },
     ],
   });

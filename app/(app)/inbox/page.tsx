@@ -4,6 +4,8 @@ import { draftsOf, inbox, listProjects } from "@/lib/core";
 import { ago } from "@/lib/meta";
 import { InboxReview } from "@/components/inbox-review";
 import { Source } from "@/components/ui";
+import { AutoPublishToggle } from "@/components/prefs";
+import { one } from "@/lib/db";
 
 export const metadata = { title: "收件箱" };
 
@@ -12,6 +14,7 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<{ 
   const convs = await inbox(me.id);
   const want = Number((await searchParams).c);
   const current = convs.find((c) => c.id === want) ?? convs[0];
+  const auto = (await one<{ auto_publish: boolean }>("select auto_publish from users where id = $1", [me.id]))?.auto_publish ?? false;
   const [drafts, projects] = await Promise.all([current ? draftsOf(current.id) : Promise.resolve([]), listProjects()]);
 
   return (
@@ -23,6 +26,7 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<{ 
         </div>
         <Link className="btn" href="/import">导入对话</Link>
       </div>
+      <AutoPublishToggle on={auto} compact />
       {!current ? (
         <section className="box">
           <div className="empty">

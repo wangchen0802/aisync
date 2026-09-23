@@ -19,7 +19,7 @@ export default async function Tasks({ searchParams }: { searchParams: Promise<{ 
   const data: TaskCardData[] = tasks.map((t) => ({
     id: t.id, title: t.title, body: t.body, status: t.status, subtasks: t.subtasks, source: t.source, due: t.due,
     assignee_id: t.assignee_id, assignee_name: t.assignee_name, owner_id: t.owner_id, project_id: t.project_id, project_name: t.project_name, project_color: t.project_color,
-    last_update: t.last_update, last_update_at: t.last_update_at, blocked_by: t.blocked_by, duplicate_of: t.duplicate_of, details: { reason: t.details.reason },
+    last_update: t.last_update, last_update_at: t.last_update_at, last_update_source: t.last_update_source, blocked_by: t.blocked_by, duplicate_of: t.duplicate_of, details: { reason: t.details.reason },
   }));
   const activeMembers = members.filter((m) => !m.invited || m.id === me.id).map((m) => ({ id: m.id, name: m.name }));
 

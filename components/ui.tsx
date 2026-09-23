@@ -27,6 +27,11 @@ const PATHS: Record<string, string> = {
   lock: '<rect x="3.5" y="7" width="9" height="6.5" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/>',
   link: '<path d="M7 9a3 3 0 0 0 4.2 0l2-2a3 3 0 0 0-4.2-4.2l-.8.8M9 7a3 3 0 0 0-4.2 0l-2 2A3 3 0 0 0 7 13.2l.8-.8"/>',
   bolt: '<path d="M9 1.5 3.5 9H8l-1 5.5L12.5 7H8z"/>',
+  chat: '<path d="M2.5 3.5h11v7.5H7l-3 2.5v-2.5H2.5z"/>',
+  menu: '<path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/>',
+  send: '<path d="M2.5 8 13.5 2.5 11 13.5 8 9z"/><path d="m8 9 5.5-6.5"/>',
+  back: '<path d="M10 3.5 5.5 8l4.5 4.5"/>',
+  phone: '<rect x="4.5" y="1.5" width="7" height="13" rx="1.5"/><path d="M7 12.5h2"/>',
 };
 
 export function Icon({ name, className = "i", style }: { name: keyof typeof PATHS | string; className?: string; style?: React.CSSProperties }) {
