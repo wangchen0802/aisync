@@ -2,6 +2,9 @@
 
 把团队每个人在 ChatGPT、Claude、DeepSeek、Gemini、Grok、Cursor、Claude Code 里的对话，自动提炼成**大家都看得见的共识和任务进度**，再把团队共识喂回每个人的 AI。
 
+- **四层记忆 + 上下文引擎**：团队档案、项目背景、实时状态（目标、共识、任务、DDL）、对话存档。任何 AI 通过 MCP、插件、只读链接、.md 文件读到同一份团队记忆（「记忆」页可以预览 AI 实际读到的内容）。
+- **团队管理**：本周目标（团队 / 个人，进度自动计算）、DDL、时间线（甘特图）、按人看工作量、本周回顾；个人想法默认私有，可一键分享或转成任务。
+- **Lark**：Lark 登录、群卡片通知、个人私信提醒（每天 9:00 的 DDL 和待确认）。
 - **共识**：从 AI 对话中提炼决策，队友确认后形成共识；和已有共识矛盾时自动标出冲突。
 - **任务进度**：任务从对话中抽取，之后谁在任何 AI 里继续推进，进度自动更新。支持看板、子任务、依赖和阻塞。
 - **细节可选**：精简 / 标准 / 完整三档，也可以单独展开某一条。
@@ -28,7 +31,9 @@
    | 变量 | 是否必填 | 说明 |
    | --- | --- | --- |
    | `AUTH_SECRET` | ✅ | 随机字符串，可用 `openssl rand -base64 32` 生成 |
-   | `TEAM_PASSCODE` | 登录方式二选一 | 团队口令。最快：把口令发给队友就能登录 |
+   | `LARK_APP_ID` / `LARK_APP_SECRET` | 推荐 | Lark 登录 + 个人私信提醒（见下方「配置 Lark」） |
+   | `LARK_DOMAIN` | 可选 | 默认 `https://open.larksuite.com`；飞书填 `https://open.feishu.cn` |
+   | `TEAM_PASSCODE` | 可选 | 团队口令登录，零配置 |
    | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | 登录方式二选一 | Google 登录（推荐，配置方法见下） |
    | `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` | 可选 | GitHub 登录 |
    | `ALLOWED_EMAIL_DOMAINS` | 建议 | 例如 `simreal.ai`，这个域名的邮箱用 Google / GitHub 登录时不需要邀请 |
@@ -39,6 +44,16 @@
 4. **Redeploy**，打开网站登录。**第一个登录的人自动成为管理员。**
 5. 管理员在「设置」里创建项目、邀请队友（或者直接把团队口令发给大家）。
 6. 每个人打开「连接 AI」页面，安装浏览器插件，配置 Claude Code / Cursor。
+
+### 配置 Lark（推荐）
+
+1. 在 [Lark 开放平台](https://open.larksuite.com/app) 创建**企业自建应用**，记下 App ID 和 App Secret，填到 `LARK_APP_ID`、`LARK_APP_SECRET`。
+2. 「安全设置 → 重定向 URL」添加：`https://<你的域名>/api/lark/callback`
+3. 「权限管理」开通：获取用户基本信息、获取用户邮箱（可选）、以应用身份发消息（`im:message:send_as_bot`）。
+4. 「应用能力」开启**机器人**，发布版本并让管理员审核通过。
+5. 群通知：在 Lark 群里添加「自定义机器人」，把 Webhook 地址填到 SimReal「设置 → 团队通知」。
+
+完成后登录页会出现「使用 Lark 登录」。同一租户的成员都能直接登录；用 Lark 登录过的人会收到私信提醒（被分配任务、每天 9:00 的 DDL 与待确认）。
 
 ### 配置 Google 登录
 

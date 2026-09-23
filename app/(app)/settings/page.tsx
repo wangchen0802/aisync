@@ -97,13 +97,14 @@ export default async function Settings() {
         <div className="box-h"><h2>部署状态</h2><span className="c">在 Vercel → Settings → Environment Variables 修改</span></div>
         <div className="list">
           <Check ok label="数据库" hint="DATABASE_URL" />
+          <Check ok={authProviders.lark} label="Lark 登录 + 个人私信提醒" hint="LARK_APP_ID / LARK_APP_SECRET（LARK_DOMAIN 默认 open.larksuite.com，飞书填 https://open.feishu.cn）" />
           <Check ok={authProviders.google} label="Google 登录" hint="AUTH_GOOGLE_ID / AUTH_GOOGLE_SECRET" />
           <Check ok={authProviders.github} label="GitHub 登录" hint="AUTH_GITHUB_ID / AUTH_GITHUB_SECRET" />
           <Check ok={authProviders.passcode} label="团队口令登录" hint="TEAM_PASSCODE" />
           <Check ok={Boolean(process.env.ALLOWED_EMAIL_DOMAINS)} label="允许的邮箱域名" hint={process.env.ALLOWED_EMAIL_DOMAINS || "ALLOWED_EMAIL_DOMAINS，例如 simreal.ai"} />
           <Check ok={aiEnabled()} label="AI 提炼（Claude）" hint={`ANTHROPIC_API_KEY · 模型 ${process.env.ANTHROPIC_MODEL || "claude-opus-5"}`} />
           <Check ok={Boolean(notifySlack || notifyFeishu || notifyWecom || process.env.SLACK_WEBHOOK_URL)} label="团队通知渠道" hint="在上方「团队通知」里配置飞书 / 企业微信 / Slack" />
-          <Check ok={Boolean(process.env.CRON_SECRET)} label="每日简报定时推送" hint="CRON_SECRET（工作日 18:00 北京时间）" />
+          <Check ok={Boolean(process.env.CRON_SECRET)} label="定时提醒" hint="CRON_SECRET：工作日 9:00 私信每人的 DDL 与待确认，周一发本周目标，18:00 发每日简报" />
         </div>
       </section>
     </>

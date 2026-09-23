@@ -11,6 +11,8 @@ const ERRORS: Record<string, string> = {
   CredentialsSignin: "口令不对，或者邮箱不在允许的范围内。",
   AccessDenied: "这个账号还没有被邀请。请让管理员在「设置 → 成员」里邀请你的邮箱，或使用团队口令登录。",
   Configuration: "登录配置有误，请检查 AUTH_SECRET 和登录方式的环境变量。",
+  Lark: "Lark 登录失败：请确认 Lark 应用已发布、回调地址已配置，且开通了获取用户信息的权限。",
+  LarkState: "登录请求已过期，请重新点击「使用 Lark 登录」。",
 };
 
 async function passcodeLogin(form: FormData) {
@@ -39,7 +41,7 @@ function Setup() {
         {!dbConfigured() ? <li>在 Vercel 项目的 <b>Storage</b> 里创建一个 <b>Neon (Postgres)</b> 数据库并连接到这个项目（会自动设置 <span className="mono">DATABASE_URL</span>）。</li> : null}
         {!process.env.AUTH_SECRET ? <li>在 <b>Settings → Environment Variables</b> 添加 <span className="mono">AUTH_SECRET</span>（任意 32 位以上随机字符串）。</li> : null}
         {!authProviders.google && !authProviders.github && !authProviders.passcode ? (
-          <li>至少开启一种登录方式：最快的是添加 <span className="mono">TEAM_PASSCODE</span>（团队口令）；也可以配置 Google 登录 <span className="mono">AUTH_GOOGLE_ID</span> / <span className="mono">AUTH_GOOGLE_SECRET</span>。</li>
+          <li>至少开启一种登录方式：推荐配置 Lark 登录 <span className="mono">LARK_APP_ID</span> / <span className="mono">LARK_APP_SECRET</span>；最快的是添加 <span className="mono">TEAM_PASSCODE</span>（团队口令）；也可以配置 Google 登录 <span className="mono">AUTH_GOOGLE_ID</span> / <span className="mono">AUTH_GOOGLE_SECRET</span>。</li>
         ) : null}
         <li>保存后在 Vercel 点 <b>Redeploy</b>。</li>
       </ol>
@@ -49,10 +51,10 @@ function Setup() {
 }
 
 export default async function Login({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
-  const ready = dbConfigured() && Boolean(process.env.AUTH_SECRET) && (authProviders.google || authProviders.github || authProviders.passcode);
+  const ready = dbConfigured() && Boolean(process.env.AUTH_SECRET) && (authProviders.lark || authProviders.google || authProviders.github || authProviders.passcode);
   if (ready && (await auth())?.user) redirect("/");
   const { error } = await searchParams;
-  const oauth = authProviders.google || authProviders.github;
+  const oauth = authProviders.lark || authProviders.google || authProviders.github;
 
   return (
     <div className="login">
@@ -68,6 +70,12 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
         {!ready ? <Setup /> : (
           <div className="login-form">
             {error ? <div className="note err">{ERRORS[error] ?? "登录失败，请重试。"}</div> : null}
+            {authProviders.lark ? (
+              <a className="oauth lark" href="/api/lark/login">
+                <span className="lark-mark" aria-hidden="true">L</span>
+                使用 Lark 登录
+              </a>
+            ) : null}
             {authProviders.google ? (
               <form action={google}>
                 <button className="oauth">

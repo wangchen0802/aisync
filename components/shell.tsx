@@ -20,7 +20,7 @@ export function MobileTop({ ws, me, inbox, detail }: { ws: string; me: { id: num
   const path = usePathname();
   useEffect(() => setOpen(false), [path]);
   const links: [string, string, string, number?][] = [
-    ["/activity", "动态", "act"], ["/ask", "问团队记忆", "ask"], ["/digest", "每日简报", "news"],
+    ["/ideas", "想法", "edit"], ["/memory", "记忆 · 问团队", "ask"], ["/activity", "动态", "act"], ["/digest", "每日简报", "news"],
     ["/import", "导入对话", "plus"], ["/connect", "连接 AI", "plug"], ["/settings", "设置", "gear"],
   ];
   return (
@@ -29,7 +29,7 @@ export function MobileTop({ ws, me, inbox, detail }: { ws: string; me: { id: num
         <Link href="/" className="row" style={{ gap: 8 }}><LogoMark size={24} /><b>{ws}</b></Link>
         <span className="grow" />
         <button className="btn ghost icon" aria-label="搜索" onClick={openPalette}><Icon name="search" /></button>
-        <button className="btn ghost icon mtop-me" aria-label="更多" onClick={() => setOpen(true)}><Avatar id={me.id} name={me.name} image={me.image} /></button>
+        <button className="btn ghost icon mtop-me" aria-label="更多" onClick={() => setOpen(true)}><Avatar id={me.id} name={me.name} image={me.image} />{inbox ? <span className="me-dot" /> : null}</button>
       </header>
       {open ? (
         <div className="scrim sheet-scrim" onMouseDown={(e) => e.target === e.currentTarget && setOpen(false)}>
@@ -54,7 +54,7 @@ export function MobileTop({ ws, me, inbox, detail }: { ws: string; me: { id: num
 
 /* ───────── bottom tab bar ───────── */
 
-export function TabBar({ attention, inbox }: { attention: number; inbox: number }) {
+export function TabBar({ attention, dueSoon }: { attention: number; dueSoon: number }) {
   const path = usePathname();
   const tab = (href: string, icon: string, label: string, count?: number) => {
     const active = href === "/" ? path === "/" : path.startsWith(href);
@@ -68,10 +68,10 @@ export function TabBar({ attention, inbox }: { attention: number; inbox: number 
   return (
     <nav className="tabbar" aria-label="底部导航">
       {tab("/", "home", "总览")}
-      {tab("/consensus", "cons", "共识", attention)}
+      {tab("/week", "bolt", "本周", dueSoon)}
       <button className="tab-fab" onClick={openCapture} aria-label="快速记录"><Icon name="plus" /></button>
       {tab("/tasks", "task", "任务")}
-      {tab("/inbox", "inbox", "收件箱", inbox)}
+      {tab("/consensus", "cons", "共识", attention)}
     </nav>
   );
 }
@@ -83,6 +83,7 @@ function guessKind(t: string) {
   if (/(负责|TODO|待办|截止|之前完成|前完成|跟进|要做|去做|todo)/i.test(t)) return "task";
   if (/(决定|确定|采用|选用|定为|就用|不做|改为|统一用)/.test(t)) return "decision";
   if (/(发现|数据显示|调研|竞品|用户反馈|\d+%)/.test(t)) return "insight";
+  if (/(想法|也许|或许|要不要试|感觉|灵感|脑暴)/.test(t)) return "idea";
   return "";
 }
 
@@ -92,6 +93,7 @@ export function QuickCapture({ projects, members }: { projects: Opt[]; members: 
   const [picked, setPicked] = useState("");
   const [project, setProject] = useState("");
   const [assignee, setAssignee] = useState("");
+  const [due, setDue] = useState("");
   const [pending, start] = useTransition();
   const guessed = useMemo(() => guessKind(text), [text]);
   const kind = picked || guessed || "decision";
@@ -116,11 +118,11 @@ export function QuickCapture({ projects, members }: { projects: Opt[]; members: 
     const [first, ...rest] = text.trim().split("\n");
     if (!first) return;
     start(async () => {
-      const r = await createItem({ kind, title: first.slice(0, 200), body: rest.join("\n").trim(), projectId: Number(project) || null, assigneeId: Number(assignee) || null });
+      const r = await createItem({ kind, title: first.slice(0, 200), body: rest.join("\n").trim(), projectId: Number(project) || null, assigneeId: Number(assignee) || null, dueDate: kind === "task" ? due || null : null });
       report(r);
       if (r.ok) {
         try { localStorage.setItem("simreal.lastProject", project); } catch { /* storage blocked */ }
-        setText(""); setPicked(""); setOpen(false);
+        setText(""); setPicked(""); setDue(""); setOpen(false);
       }
     });
   };
@@ -161,7 +163,12 @@ export function QuickCapture({ projects, members }: { projects: Opt[]; members: 
           </label>
         ) : <div />}
       </div>
-      <p className="muted" style={{ margin: 0, fontSize: 12 }}>第一行是标题，其余是补充说明。{kind === "decision" ? "决策发出后会请队友确认。" : ""} <kbd>⌘</kbd>+<kbd>Enter</kbd> 发送 · 任意页面按 <kbd>C</kbd> 打开</p>
+      {kind === "task" ? (
+        <label className="field"><span>DDL（不填会从文字里识别，比如「周五前」）</span>
+          <input className="input" type="date" value={due} onChange={(e) => setDue(e.target.value)} />
+        </label>
+      ) : null}
+      <p className="muted" style={{ margin: 0, fontSize: 12 }}>第一行是标题，其余是补充说明。{kind === "decision" ? "决策发出后会请队友确认。" : kind === "idea" ? "想法默认只有你自己可见。" : ""} <kbd>⌘</kbd>+<kbd>Enter</kbd> 发送 · 任意页面按 <kbd>C</kbd> 打开</p>
     </Dialog>
   );
 }

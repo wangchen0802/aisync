@@ -50,6 +50,7 @@ const ItemSchema = z.object({
   quote: z.string().describe("支撑这条结论的原文片段，≤120 字"),
   assignee: z.string().describe("任务负责人的名字或邮箱；未提及留空"),
   due: z.string().describe("任务截止时间的原文说法，如「周五」；未提及留空"),
+  due_date: z.string().describe("截止日期换算成 YYYY-MM-DD（以「今天」为基准）；未提及留空"),
   subtasks: z.array(z.string()).describe("任务的子步骤，最多 6 个；非任务留空数组"),
   sensitive: z.boolean().describe("是否包含财务数据、客户隐私、密钥等不宜全员公开的信息"),
 });
@@ -76,6 +77,7 @@ export type DistillContext = {
   openTasks: { id: number; title: string; subtasks: string[] }[];
   members: string[];
   known?: string[];
+  today?: string;
 };
 
 const DISTILL_SYSTEM = `你是创业团队的"共识秘书"。团队成员会把他们和各种 AI（ChatGPT、Claude、DeepSeek、Gemini、Grok、Cursor 等）的对话交给你。
@@ -107,7 +109,7 @@ export async function distillWithAI(text: string, ctx: DistillContext): Promise<
     messages: [
       {
         role: "user",
-        content: `团队项目：\n${projects}\n\n团队成员：${ctx.members.join("、") || "（未知）"}\n\n作者进行中的任务：\n${tasks}${ctx.known?.length ? `\n\n这段对话之前已经同步过，下面是已经记录过的结论，不要重复提炼：\n${ctx.known.map((k) => `- ${k}`).join("\n")}` : ""}\n\n<conversation>\n${text}\n</conversation>`,
+        content: `今天是 ${ctx.today ?? new Date().toISOString().slice(0, 10)}。\n\n团队项目：\n${projects}\n\n团队成员：${ctx.members.join("、") || "（未知）"}\n\n作者进行中的任务：\n${tasks}${ctx.known?.length ? `\n\n这段对话之前已经同步过，下面是已经记录过的结论，不要重复提炼：\n${ctx.known.map((k) => `- ${k}`).join("\n")}` : ""}\n\n<conversation>\n${text}\n</conversation>`,
       },
     ],
   });
@@ -132,7 +134,7 @@ export function distillHeuristic(text: string, title?: string): Distilled {
     seen.add(key);
     const assignee = kind === "task" ? (l.match(/^([\p{L}A-Za-z]{1,12}?)\s*(?:负责|来做|跟进)/u)?.[1] ?? "") : "";
     const due = kind === "task" ? (l.match(/(下?周[一二三四五六日天]|今天|明天|后天|月底|\d{1,2}月\d{1,2}[日号])/)?.[1] ?? "") : "";
-    items.push({ kind, title: l.slice(0, 60), body: "", alternatives: [], quote: l, assignee, due, subtasks: [], sensitive: /\[已打码\]/.test(l) });
+    items.push({ kind, title: l.slice(0, 60), body: "", alternatives: [], quote: l, assignee, due, due_date: "", subtasks: [], sensitive: /\[已打码\]/.test(l) });
   };
   raw.forEach((r, i) => {
     const l = lines[i];

@@ -14,13 +14,15 @@ export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const me = await requireUser();
-  const [counts] = await q<{ inbox: number; attention: number; open_tasks: number; members: number }>(
+  const [counts] = await q<{ inbox: number; attention: number; open_tasks: number; members: number; due_soon: number }>(
     `select
        (select count(*)::int from conversations where user_id = $1 and status = 'pending') as inbox,
        (select count(*)::int from items i where i.kind = 'decision' and i.visibility = 'team'
           and (i.status = 'conflict' or (i.status = 'discussing' and not exists (select 1 from acks a where a.item_id = i.id and a.user_id = $1)))) as attention,
        (select count(*)::int from items where kind = 'task' and visibility = 'team' and status <> 'done') as open_tasks,
-       (select count(*)::int from users where not invited) as members`,
+       (select count(*)::int from users where not invited) as members,
+       (select count(*)::int from items where kind = 'task' and visibility = 'team' and status <> 'done' and assignee_id = $1
+          and due_date is not null and due_date <= (now() at time zone 'Asia/Shanghai')::date + 2) as due_soon`,
     [me.id],
   );
   const projects = await q<{ id: number; name: string; color: string; done: number; total: number }>(
@@ -50,11 +52,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <nav className="nav main" aria-label="主导航">
           <h6>工作区</h6>
           <NavLink href="/" icon="home" label="总览" />
+          <NavLink href="/week" icon="bolt" label="本周" count={counts.due_soon} />
+          <NavLink href="/tasks" icon="task" label="任务" count={counts.open_tasks} />
           <NavLink href="/consensus" icon="cons" label="共识" count={counts.attention} hot />
-          <NavLink href="/tasks" icon="task" label="任务进度" count={counts.open_tasks} />
-          <NavLink href="/activity" icon="act" label="动态" />
+          <NavLink href="/ideas" icon="edit" label="想法" />
+          <NavLink href="/memory" icon="ask" label="记忆" />
           <NavLink href="/inbox" icon="inbox" label="收件箱" count={counts.inbox} hot />
-          <NavLink href="/ask" icon="ask" label="问团队记忆" />
+          <h6>更多</h6>
+          <NavLink href="/activity" icon="act" label="动态" />
           <NavLink href="/digest" icon="news" label="每日简报" />
           <NavLink href="/connect" icon="plug" label="连接 AI" />
           <NavLink href="/settings" icon="gear" label="设置" />
@@ -85,7 +90,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </header>
         <main className="content">{children}</main>
       </div>
-      <TabBar attention={counts.attention} inbox={counts.inbox} />
+      <TabBar attention={counts.attention} dueSoon={counts.due_soon} />
       <QuickCapture projects={projects.map((p) => ({ id: p.id, name: p.name }))} members={members} />
       <CommandPalette />
       <Toaster />

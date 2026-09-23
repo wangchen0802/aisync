@@ -1,4 +1,4 @@
-import { avatarColor, sourceOf } from "@/lib/meta";
+import { avatarColor, dueTone, fmtDue, sourceOf } from "@/lib/meta";
 
 const PATHS: Record<string, string> = {
   home: '<path d="M2.5 7 8 2.5 13.5 7v6.5h-3.5V10h-4v3.5H2.5z"/>',
@@ -100,4 +100,10 @@ export function Progress({ done, total, status }: { done: number; total: number;
       <span style={{ width: `${pct}%` }} />
     </div>
   );
+}
+
+export function DueChip({ date, status, today }: { date: string | null | undefined; status: string; today?: string }) {
+  if (!date) return null;
+  const tone = dueTone(date, status, today) ?? "done";
+  return <span className={`due due-${tone}`} title={`DDL ${date}`}>{status === "done" ? date.slice(5).replace("-", "/") : fmtDue(date, today)}</span>;
 }

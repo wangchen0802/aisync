@@ -1,4 +1,4 @@
-import { contextPack, createItem, getItem, ingestConversation, itemLine, listProjects, logEvent, moveTask, search, type Actor } from "@/lib/core";
+import { buildContext, contextPack, createItem, getItem, ingestConversation, itemLine, listProjects, logEvent, moveTask, search, type Actor } from "@/lib/core";
 import { one, q } from "@/lib/db";
 import { CORS, json, userFromRequest } from "@/lib/token";
 import { TASK_STATUS, type Subtask } from "@/lib/meta";
@@ -14,8 +14,19 @@ const TOOLS = [
   },
   {
     name: "get_team_context",
-    description: "获取团队（或某个项目）的上下文：已确认的共识、进行中的任务、待定问题。开始新对话时调用。",
-    inputSchema: { type: "object", properties: { project: { type: "string", description: "项目名称，可选" } } },
+    description: "获取团队上下文：团队档案、本周目标、已确认的共识、进行中的任务与 DDL、待定问题。开始新任务或新对话时先调用。传入 topic 会把与该话题相关的条目排在最前面。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project: { type: "string", description: "项目名称，可选" },
+        topic: { type: "string", description: "当前讨论的话题，可选，例如「定价」「支付」" },
+      },
+    },
+  },
+  {
+    name: "get_my_work",
+    description: "获取当前用户自己的工作：负责的任务（按 DDL 排序）、本周个人目标、等我确认的决策、我的想法。",
+    inputSchema: { type: "object", properties: {} },
   },
   {
     name: "log_decision",
@@ -70,10 +81,12 @@ async function callTool(me: Actor, name: string, a: Record<string, unknown>, cli
   switch (name) {
     case "search_team_memory": {
       const hits = await search(me.id, String(a.query ?? ""), 12);
-      return hits.length ? hits.map(itemLine).join("\n") : "没有找到相关的团队记录。";
+      return hits.length ? hits.map((i) => itemLine(i)).join("\n") : "没有找到相关的团队记录。";
     }
     case "get_team_context":
-      return contextPack(me.id, await projectId(a.project as string | undefined));
+      return contextPack(me.id, await projectId(a.project as string | undefined), a.topic ? String(a.topic) : undefined);
+    case "get_my_work":
+      return (await buildContext(me.id, { scope: "me", budget: 5000 })).text;
     case "log_decision": {
       const id = await createItem(me, { kind: "decision", title: String(a.title), body: String(a.reason ?? ""), projectId: await projectId(a.project as string | undefined), source: src });
       return `已记录 D-${id}，等待队友确认：${origin}/consensus#D-${id}`;
@@ -126,15 +139,32 @@ async function handle(me: Actor, msg: Rpc, origin: string, clientName: { v: stri
       clientName.v = info?.name ?? "";
       return ok({
         protocolVersion: (msg.params?.protocolVersion as string) || "2025-06-18",
-        capabilities: { tools: { listChanged: false } },
+        capabilities: { tools: { listChanged: false }, resources: { listChanged: false } },
         serverInfo: { name: "simreal-sync", version: "0.1.0" },
-        instructions: "SimReal 团队记忆。开始任务前用 search_team_memory 或 get_team_context 了解团队已有共识；做出决策后用 log_decision 记录；推进任务后用 update_task 更新进度。",
+        instructions: "SimReal 是团队的共享记忆。开始任务前先调用 get_team_context（带上 topic）了解团队档案、本周目标和已确认的共识；拿不准时用 search_team_memory 查。做出决策后用 log_decision 记录，推进任务后用 update_task 更新进度。建议不要与「已确认的共识」冲突，冲突时要明确指出编号。",
       });
     }
     case "ping":
       return ok({});
     case "tools/list":
       return ok({ tools: TOOLS });
+    case "resources/list": {
+      const ps = await listProjects();
+      return ok({
+        resources: [
+          { uri: "simreal://context/team", name: "团队上下文", description: "团队档案、本周目标、共识、任务与 DDL", mimeType: "text/markdown" },
+          { uri: "simreal://context/me", name: "我的工作", description: "我负责的任务、个人目标、等我确认的决策、我的想法", mimeType: "text/markdown" },
+          ...ps.map((p) => ({ uri: `simreal://context/project/${p.id}`, name: `项目：${p.name}`, description: p.description || "项目背景与进展", mimeType: "text/markdown" })),
+        ],
+      });
+    }
+    case "resources/read": {
+      const uri = String(msg.params?.uri ?? "");
+      const m = uri.match(/^simreal:\/\/context\/(team|me|project\/(\d+))$/);
+      if (!m) return err(-32602, `Unknown resource: ${uri}`);
+      const ctx = m[1] === "me" ? await buildContext(me.id, { scope: "me" }) : m[2] ? await buildContext(me.id, { projectId: Number(m[2]) }) : await buildContext(me.id);
+      return ok({ contents: [{ uri, mimeType: "text/markdown", text: ctx.text }] });
+    }
     case "tools/call": {
       const name = String(msg.params?.name ?? "");
       const args = (msg.params?.arguments ?? {}) as Record<string, unknown>;

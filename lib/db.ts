@@ -3,6 +3,7 @@ import { Pool, types, type QueryResultRow } from "pg";
 // Return timestamps as ISO strings so they serialize cleanly to client components.
 types.setTypeParser(1184, (v) => new Date(v).toISOString());
 types.setTypeParser(1114, (v) => new Date(v + "Z").toISOString());
+types.setTypeParser(1082, (v) => v); // date → "YYYY-MM-DD"
 
 const SCHEMA = `
 select pg_advisory_xact_lock(727201);
@@ -100,6 +101,26 @@ alter table users add column if not exists seen_at timestamptz;
 alter table users add column if not exists prev_seen_at timestamptz;
 alter table conversations add column if not exists external_key text;
 alter table items add column if not exists last_update_source text;
+alter table items add column if not exists due_date date;
+alter table items add column if not exists goal_id int;
+alter table items add column if not exists completed_at timestamptz;
+alter table users add column if not exists lark_open_id text;
+alter table users add column if not exists context_key text unique;
+alter table projects add column if not exists context text not null default '';
+create table if not exists goals (
+  id serial primary key,
+  title text not null,
+  scope text not null default 'team',
+  owner_id int references users(id) on delete set null,
+  project_id int references projects(id) on delete set null,
+  week date not null,
+  status text not null default 'on_track',
+  manual_progress int,
+  note text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists goals_week_idx on goals(week);
 create index if not exists conversations_key_idx on conversations(user_id, external_key);
 `;
 

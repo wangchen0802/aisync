@@ -189,8 +189,8 @@ export function Dialog({ title, onClose, children, footer }: { title: string; on
 
 type Opt = { id: number; name: string };
 export function NewItemButton({
-  kind: initialKind = "decision", projects, members, decisions = [], defaultProject, label, className = "btn pri",
-}: { kind?: string; projects: Opt[]; members: Opt[]; decisions?: { id: number; title: string }[]; defaultProject?: number | null; label?: string; className?: string }) {
+  kind: initialKind = "decision", projects, members, decisions = [], goals = [], defaultProject, label, className = "btn pri",
+}: { kind?: string; projects: Opt[]; members: Opt[]; decisions?: { id: number; title: string }[]; goals?: { id: number; title: string }[]; defaultProject?: number | null; label?: string; className?: string }) {
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState(initialKind);
   const [title, setTitle] = useState("");
@@ -200,13 +200,14 @@ export function NewItemButton({
   const [due, setDue] = useState("");
   const [subs, setSubs] = useState("");
   const [blocked, setBlocked] = useState("");
+  const [goal, setGoal] = useState("");
   const [pending, start] = useTransition();
   const close = useCallback(() => setOpen(false), []);
   const submit = () =>
     start(async () => {
       const r = await createItem({
-        kind, title, body, projectId: Number(project) || null, assigneeId: Number(assignee) || null, due,
-        subtasks: subs.split("\n").map((s) => s.trim()).filter(Boolean), blockedBy: Number(blocked) || null,
+        kind, title, body, projectId: Number(project) || null, assigneeId: Number(assignee) || null, dueDate: due || null,
+        subtasks: subs.split("\n").map((s) => s.trim()).filter(Boolean), blockedBy: Number(blocked) || null, goalId: Number(goal) || null,
       });
       report(r);
       if (r.ok) { setOpen(false); setTitle(""); setBody(""); setSubs(""); setDue(""); setBlocked(""); }
@@ -245,7 +246,7 @@ export function NewItemButton({
           {kind === "task" ? (
             <>
               <div className="two">
-                <label className="field"><span>截止</span><input className="input" value={due} onChange={(e) => setDue(e.target.value)} placeholder="例如：周五" /></label>
+                <label className="field"><span>DDL</span><input className="input" type="date" value={due} onChange={(e) => setDue(e.target.value)} /></label>
                 <label className="field"><span>依赖某条决策（未确认前为阻塞）</span>
                   <select className="select" value={blocked} onChange={(e) => setBlocked(e.target.value)}>
                     <option value="">无</option>
@@ -253,6 +254,14 @@ export function NewItemButton({
                   </select>
                 </label>
               </div>
+              {goals.length ? (
+                <label className="field"><span>关联本周目标</span>
+                  <select className="select" value={goal} onChange={(e) => setGoal(e.target.value)}>
+                    <option value="">不关联</option>
+                    {goals.map((g) => <option key={g.id} value={g.id}>{g.title}</option>)}
+                  </select>
+                </label>
+              ) : null}
               <label className="field"><span>子任务（每行一个）</span><textarea className="textarea" style={{ minHeight: 70 }} value={subs} onChange={(e) => setSubs(e.target.value)} /></label>
             </>
           ) : null}
@@ -266,9 +275,9 @@ export function NewItemButton({
 
 type Hit = { id: number; kind: string; title: string; status: string; owner: string | null };
 const NAV_ITEMS: [string, string, string][] = [
-  ["/", "总览", "home"], ["/consensus", "共识", "cons"], ["/tasks", "任务进度", "task"], ["/activity", "动态", "act"],
-  ["/inbox", "收件箱", "inbox"], ["/import", "导入对话", "plus"], ["/ask", "问团队记忆", "ask"], ["/digest", "每日简报", "news"],
-  ["/connect", "连接 AI", "plug"], ["/settings", "设置", "gear"],
+  ["/", "总览", "home"], ["/week", "本周", "bolt"], ["/tasks", "任务", "task"], ["/consensus", "共识", "cons"], ["/ideas", "想法", "edit"],
+  ["/memory", "记忆", "ask"], ["/inbox", "收件箱", "inbox"], ["/activity", "动态", "act"], ["/import", "导入对话", "plus"],
+  ["/ask", "问团队记忆", "ask"], ["/digest", "每日简报", "news"], ["/connect", "连接 AI", "plug"], ["/settings", "设置", "gear"],
 ];
 
 export function CommandPalette() {

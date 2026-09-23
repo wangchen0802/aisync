@@ -122,7 +122,8 @@
 
   async function ctx() {
     const input = findInput();
-    const r = await send({ type: "context" });
+    // The conversation title makes a good topic: related decisions and tasks come first.
+    const r = await send({ type: "context", topic: title() });
     if (!r.ok) return toast(r.error, true);
     if (!input) {
       try { await navigator.clipboard.writeText(r.data); toast("没找到输入框，已复制团队上下文到剪贴板。"); } catch { toast("没找到输入框。", true); }

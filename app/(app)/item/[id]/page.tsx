@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/session";
-import { ackThreshold, getItem, listComments, listMembers } from "@/lib/core";
+import { ackThreshold, getItem, listComments, listGoals, listMembers } from "@/lib/core";
 import { q } from "@/lib/db";
 import { agree, confirmNow, deleteItem, reopenDecision, resolveConflict, resolveQuestion } from "@/lib/actions";
-import { ago, code, DECISION_STATUS, KIND_LABEL, TASK_STATUS, type Kind } from "@/lib/meta";
+import { ago, code, DECISION_STATUS, fmtDay, KIND_LABEL, TASK_STATUS, todayISO, weekStart, type Kind } from "@/lib/meta";
+import { IdeaActions } from "@/components/ideas-client";
+import { DueChip } from "@/components/ui";
 import { ActionButton, CopyButton, ObjectButton } from "@/components/client";
 import { CommentForm, EditableText, TaskControls } from "@/components/item-client";
 import { Acks } from "@/components/items";
@@ -27,7 +29,8 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
   const id = Number((await params).id.replace(/^[A-Za-z]-?/, ""));
   const item = id ? await getItem(id) : null;
   if (!item || item.visibility === "draft" || (item.visibility === "private" && item.owner_id !== me.id)) notFound();
-  const [comments, threshold, members, history, other, related] = await Promise.all([
+  const [goals, comments, threshold, members, history, other, related] = await Promise.all([
+    item.kind === "task" ? listGoals(me.id, weekStart(todayISO())) : Promise.resolve([]),
     listComments(id),
     ackThreshold(),
     listMembers(),
@@ -46,14 +49,14 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
   const link = `${await origin()}/item/${item.id}`;
   const canForce = item.owner_id === me.id || me.role === "admin";
   const mine = item.acks.find((a) => a.user_id === me.id);
-  const status = item.kind === "task" ? TASK_STATUS[item.status] : item.kind === "decision" ? DECISION_STATUS[item.status] : item.status === "resolved" ? "已解决" : "开放";
-  const back = item.kind === "task" ? "/tasks" : "/consensus";
+  const status = item.kind === "task" ? TASK_STATUS[item.status] : item.kind === "decision" ? DECISION_STATUS[item.status] : item.kind === "idea" ? (item.status === "resolved" ? "已转化" : item.visibility === "team" ? "已分享" : "仅自己") : item.status === "resolved" ? "已解决" : "开放";
+  const back = item.kind === "task" ? "/tasks" : item.kind === "idea" ? "/ideas" : "/consensus";
   const activeMembers = members.filter((m) => !m.invited || m.id === me.id).map((m) => ({ id: m.id, name: m.name }));
 
   return (
     <div className="item-page">
       <div className="row" style={{ gap: 6 }}>
-        <Link className="btn ghost sm" href={back}><Icon name="back" />{item.kind === "task" ? "任务进度" : "共识"}</Link>
+        <Link className="btn ghost sm" href={back}><Icon name="back" />{item.kind === "task" ? "任务" : item.kind === "idea" ? "想法" : "共识"}</Link>
       </div>
 
       <section className="box pad stack" style={{ gap: 14 }}>
@@ -72,7 +75,7 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
           <Source s={item.source} />
           <span>{ago(item.created_at)}</span>
           {item.kind === "task" && item.assignee_name ? <><span>·</span><Avatar id={item.assignee_id} name={item.assignee_name} /><span>{item.assignee_name} 负责</span></> : null}
-          {item.due ? <span>· 截止 {item.due}</span> : null}
+          {item.due_date ? <><span>· DDL {fmtDay(item.due_date)}</span><DueChip date={item.due_date} status={item.status} /></> : null}
         </div>
 
         {item.kind === "decision" ? (
@@ -105,7 +108,8 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
           </div>
         ) : null}
 
-        {item.kind === "task" ? <TaskControls id={item.id} status={item.status} subtasks={item.subtasks} assigneeId={item.assignee_id} due={item.due} members={activeMembers} /> : null}
+        {item.kind === "task" ? <TaskControls id={item.id} status={item.status} subtasks={item.subtasks} assigneeId={item.assignee_id} due={item.due_date} members={activeMembers} goals={goals.map((g) => ({ id: g.id, title: g.title }))} goalId={item.goal_id} /> : null}
+        {item.kind === "idea" && item.owner_id === me.id && item.status === "open" ? <IdeaActions id={item.id} shared={item.visibility === "team"} /> : null}
         {item.kind === "question" && item.status === "open" ? <div><ActionButton className="btn" action={resolveQuestion.bind(null, item.id)}>标记已解决</ActionButton></div> : null}
 
         <div className="row" style={{ borderTop: "1px solid var(--line)", paddingTop: 12 }}>

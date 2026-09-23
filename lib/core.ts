@@ -1,20 +1,21 @@
 import "server-only";
 import { one, q, tx } from "@/lib/db";
 import { aiEnabled, distillHeuristic, distillWithAI, findRelations, redact, type Distilled } from "@/lib/ai";
-import { code, DECISION_STATUS, type Subtask, TASK_STATUS } from "@/lib/meta";
-import { notify } from "@/lib/notify";
+import { addDays, code, DECISION_STATUS, estimateTokens, fmtDay, fmtDue, parseDue, type Subtask, TASK_STATUS, todayISO, weekStart } from "@/lib/meta";
+import { dmUser, notify } from "@/lib/notify";
 
 export type Actor = { id: number; name: string; email: string; role: string };
 
 export type AckRow = { user_id: number; name: string; verdict: "agree" | "object"; comment: string | null };
 export type ItemRow = {
   id: number; kind: string; title: string; body: string; status: string; visibility: string;
-  details: { alternatives?: string[]; quote?: string; assignee?: string; sensitive?: boolean; task_id?: number; done_subtasks?: string[]; new_status?: string; note?: string; reason?: string };
+  details: { alternatives?: string[]; quote?: string; assignee?: string; sensitive?: boolean; task_id?: number; done_subtasks?: string[]; new_status?: string; note?: string; reason?: string; converted_to?: number };
   owner_id: number | null; owner_name: string | null; assignee_id: number | null; assignee_name: string | null;
   project_id: number | null; project_name: string | null; project_color: string | null;
   conversation_id: number | null; source: string; due: string | null; subtasks: Subtask[];
   conflict_with: number | null; superseded_by: number | null; blocked_by: number | null; duplicate_of: number | null;
   last_update: string | null; last_update_at: string | null; last_update_source: string | null; created_at: string; updated_at: string;
+  due_date: string | null; goal_id: number | null; completed_at: string | null;
   acks: AckRow[];
   comment_count: number;
 };
@@ -126,6 +127,7 @@ export async function ingestConversation(
         openTasks: openTasks.map((t) => ({ id: t.id, title: t.title, subtasks: t.subtasks.map((s) => s.title) })),
         members: members.map((m) => m.name),
         known,
+        today: todayISO(),
       });
     } catch (e) {
       console.error("distill failed, using heuristic", e);
@@ -152,13 +154,14 @@ export async function ingestConversation(
     );
     for (const it of result.items) {
       await run(
-        `insert into items (kind, title, body, details, status, visibility, owner_id, project_id, conversation_id, source, due, subtasks)
-         values ($1, $2, $3, $4, 'draft', 'draft', $5, $6, $7, $8, $9, $10)`,
+        `insert into items (kind, title, body, details, status, visibility, owner_id, project_id, conversation_id, source, due, subtasks, due_date)
+         values ($1, $2, $3, $4, 'draft', 'draft', $5, $6, $7, $8, $9, $10, $11)`,
         [
           it.kind, it.title.slice(0, 200), it.body.slice(0, 500),
           JSON.stringify({ alternatives: it.alternatives, quote: it.quote, assignee: it.assignee, sensitive: it.sensitive || /\[已打码\]/.test(it.title + it.body) }),
           actor.id, projectId, conv.id, input.source, it.due || null,
           JSON.stringify(it.subtasks.slice(0, 8).map((t) => ({ title: t, done: false }))),
+          (/^\d{4}-\d{2}-\d{2}$/.test(it.due_date ?? "") ? it.due_date : null) ?? parseDue(it.due),
         ],
       );
     }
@@ -319,7 +322,7 @@ async function applyTaskUpdate(actor: Actor, d: ItemRow) {
   if (subtasks.length && subtasks.every((s) => s.done)) status = "done";
   const note = d.details.note || d.body || "有新进展";
   await q(
-    "update items set subtasks = $2, status = $3, last_update = $4, last_update_at = now(), updated_at = now(), last_update_source = $5 where id = $1",
+    "update items set subtasks = $2, status = $3, last_update = $4, last_update_at = now(), updated_at = now(), last_update_source = $5, completed_at = case when $3 = 'done' then coalesce(completed_at, now()) else null end where id = $1",
     [taskId, JSON.stringify(subtasks), status, note, d.source],
   );
   await logEvent(actor.id, "task_progress", note, taskId);
@@ -394,23 +397,36 @@ export async function resolveConflict(actor: Actor, itemId: number, keep: "this"
 
 /* ───────────── tasks & items ───────────── */
 
-export async function createItem(actor: Actor, input: { kind: string; title: string; body?: string; projectId?: number | null; assigneeId?: number | null; due?: string; subtasks?: string[]; blockedBy?: number | null; source?: string }) {
+export type NewItem = {
+  kind: string; title: string; body?: string; projectId?: number | null; assigneeId?: number | null; due?: string; dueDate?: string | null;
+  subtasks?: string[]; blockedBy?: number | null; source?: string; goalId?: number | null; visibility?: "team" | "private";
+};
+
+export async function createItem(actor: Actor, input: NewItem) {
   const status = input.kind === "decision" ? "discussing" : input.kind === "task" ? (input.blockedBy ? "blocked" : "todo") : "open";
+  const visibility = input.visibility ?? (input.kind === "idea" ? "private" : "team");
+  const dueDate = input.dueDate || parseDue(input.due) || (input.kind === "task" ? parseDue(input.title) : null);
+  const assigneeId = input.kind === "task" ? input.assigneeId ?? actor.id : null;
   const row = await one<{ id: number }>(
-    `insert into items (kind, title, body, status, visibility, owner_id, assignee_id, project_id, source, due, subtasks, blocked_by)
-     values ($1, $2, $3, $4, 'team', $5, $6, $7, $8, $9, $10, $11) returning id`,
+    `insert into items (kind, title, body, status, visibility, owner_id, assignee_id, project_id, source, due, subtasks, blocked_by, due_date, goal_id)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) returning id`,
     [
-      input.kind, input.title.slice(0, 200), (input.body ?? "").slice(0, 500), status, actor.id,
-      input.kind === "task" ? input.assigneeId ?? actor.id : null, input.projectId ?? null, input.source ?? "manual",
+      input.kind, input.title.slice(0, 200), (input.body ?? "").slice(0, 2000), status, visibility, actor.id,
+      assigneeId, input.projectId ?? null, input.source ?? "manual",
       input.due || null, JSON.stringify((input.subtasks ?? []).filter(Boolean).map((t) => ({ title: t, done: false }))), input.blockedBy ?? null,
+      dueDate, input.goalId ?? null,
     ],
   );
+  const id = row!.id;
   if (input.kind === "decision") {
-    await q("insert into acks (item_id, user_id, verdict) values ($1, $2, 'agree')", [row!.id, actor.id]);
-    await checkConfirm(row!.id, actor);
+    await q("insert into acks (item_id, user_id, verdict) values ($1, $2, 'agree')", [id, actor.id]);
+    await checkConfirm(id, actor);
   }
-  await logEvent(actor.id, "create", input.title, row!.id);
-  return row!.id;
+  if (visibility === "team") await logEvent(actor.id, "create", input.title, id);
+  if (input.kind === "task" && assigneeId && assigneeId !== actor.id) {
+    await dmUser(assigneeId, `${actor.name} 给你分配了任务`, [`${code("task", id)} ${input.title}${dueDate ? ` · 截止 ${fmtDay(dueDate)}` : ""}`], `/item/${id}`);
+  }
+  return id;
 }
 
 export async function moveTask(actor: Actor, taskId: number, status: string) {
@@ -420,6 +436,7 @@ export async function moveTask(actor: Actor, taskId: number, status: string) {
   const subtasks = status === "done" ? task.subtasks.map((s) => ({ ...s, done: true })) : task.subtasks;
   await q(
     `update items set status = $2, subtasks = $3, last_update = $4, last_update_at = now(), updated_at = now(), last_update_source = 'manual',
+       completed_at = case when $2 = 'done' then coalesce(completed_at, now()) else null end,
        blocked_by = case when $2 = 'blocked' then blocked_by else null end where id = $1`,
     [taskId, status, JSON.stringify(subtasks), `${actor.name} 移到「${TASK_STATUS[status]}」`],
   );
@@ -433,7 +450,7 @@ export async function setSubtasks(actor: Actor, taskId: number, subtasks: Subtas
   if (subtasks.length && subtasks.every((s) => s.done)) status = "done";
   else if (status === "todo" && subtasks.some((s) => s.done)) status = "doing";
   else if (status === "done" && subtasks.some((s) => !s.done)) status = "doing";
-  await q("update items set subtasks = $2, status = $3, updated_at = now(), last_update = $4, last_update_at = now(), last_update_source = 'manual' where id = $1", [
+  await q("update items set subtasks = $2, status = $3, updated_at = now(), last_update = $4, last_update_at = now(), last_update_source = 'manual', completed_at = case when $3 = 'done' then coalesce(completed_at, now()) else null end where id = $1", [
     taskId, JSON.stringify(subtasks.slice(0, 20)), status, `${actor.name} 更新了子任务`,
   ]);
 }
@@ -445,15 +462,99 @@ export async function deleteItem(actor: Actor, itemId: number) {
   await q("delete from items where id = $1", [itemId]);
 }
 
-export async function editItem(actor: Actor, itemId: number, patch: { title?: string; body?: string; due?: string; assigneeId?: number | null; projectId?: number | null }) {
-  const item = await one<{ owner_id: number }>("select owner_id from items where id = $1", [itemId]);
+export type ItemPatch = { title?: string; body?: string; dueDate?: string | null; assigneeId?: number | null; projectId?: number | null; goalId?: number | null };
+
+export async function editItem(actor: Actor, itemId: number, patch: ItemPatch) {
+  const item = await one<{ owner_id: number; kind: string; title: string; assignee_id: number | null }>("select owner_id, kind, title, assignee_id from items where id = $1", [itemId]);
   if (!item) throw new Error("找不到条目");
+  const has = (k: keyof ItemPatch) => patch[k] !== undefined;
+  const dueDate = patch.dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(patch.dueDate) ? parseDue(patch.dueDate) : patch.dueDate ?? null;
   await q(
-    `update items set title = coalesce($2, title), body = coalesce($3, body), due = coalesce($4, due),
-       assignee_id = case when $5::boolean then $6 else assignee_id end,
-       project_id = case when $7::boolean then $8 else project_id end, updated_at = now() where id = $1`,
-    [itemId, patch.title ?? null, patch.body ?? null, patch.due ?? null, patch.assigneeId !== undefined, patch.assigneeId ?? null, patch.projectId !== undefined, patch.projectId ?? null],
+    `update items set title = coalesce($2, title), body = coalesce($3, body),
+       due_date = case when $4::boolean then $5::date else due_date end,
+       assignee_id = case when $6::boolean then $7 else assignee_id end,
+       project_id = case when $8::boolean then $9 else project_id end,
+       goal_id = case when $10::boolean then $11 else goal_id end, updated_at = now() where id = $1`,
+    [itemId, patch.title ?? null, patch.body ?? null, has("dueDate"), dueDate, has("assigneeId"), patch.assigneeId ?? null, has("projectId"), patch.projectId ?? null, has("goalId"), patch.goalId ?? null],
   );
+  if (has("assigneeId") && patch.assigneeId && patch.assigneeId !== actor.id && patch.assigneeId !== item.assignee_id && item.kind === "task") {
+    await dmUser(patch.assigneeId, `${actor.name} 把任务交给了你`, [`${code("task", itemId)} ${item.title}`], `/item/${itemId}`);
+  }
+}
+
+/* ───────────── ideas ───────────── */
+
+export async function shareIdea(actor: Actor, id: number) {
+  const it = await one<{ owner_id: number; title: string }>("select owner_id, title from items where id = $1 and kind = 'idea'", [id]);
+  if (!it || it.owner_id !== actor.id) throw new Error("只能分享自己的想法");
+  await q("update items set visibility = 'team', updated_at = now() where id = $1", [id]);
+  await logEvent(actor.id, "create", it.title, id);
+}
+
+export async function convertIdea(actor: Actor, id: number, kind: "decision" | "task" | "question") {
+  const it = await one<{ owner_id: number; title: string; body: string; project_id: number | null }>("select owner_id, title, body, project_id from items where id = $1 and kind = 'idea'", [id]);
+  if (!it || it.owner_id !== actor.id) throw new Error("只能转换自己的想法");
+  const newId = await createItem(actor, { kind, title: it.title, body: it.body, projectId: it.project_id });
+  await q("update items set status = 'resolved', details = details || $2::jsonb, updated_at = now() where id = $1", [id, JSON.stringify({ converted_to: newId })]);
+  return newId;
+}
+
+/* ───────────── weekly goals ───────────── */
+
+export type GoalRow = {
+  id: number; title: string; scope: "team" | "personal"; owner_id: number | null; owner_name: string | null; project_id: number | null;
+  project_name: string | null; project_color: string | null; week: string; status: string; manual_progress: number | null; note: string;
+  tasks_total: number; tasks_done: number; subtasks_total: number; subtasks_done: number;
+};
+
+export async function listGoals(me: number, week: string) {
+  return q<GoalRow>(
+    `select g.*, u.name as owner_name, p.name as project_name, p.color as project_color,
+       count(i.id)::int as tasks_total, count(i.id) filter (where i.status = 'done')::int as tasks_done,
+       coalesce(sum(greatest(jsonb_array_length(i.subtasks), 1)) filter (where i.id is not null), 0)::int as subtasks_total,
+       coalesce(sum(case when jsonb_array_length(i.subtasks) = 0 then (i.status = 'done')::int
+                         else (select count(*) from jsonb_array_elements(i.subtasks) s where (s->>'done')::boolean) end), 0)::int as subtasks_done
+     from goals g left join users u on u.id = g.owner_id left join projects p on p.id = g.project_id
+     left join items i on i.goal_id = g.id and i.kind = 'task' and i.visibility <> 'draft'
+     where g.week = $2 and (g.scope = 'team' or g.owner_id = $1)
+     group by g.id, u.name, p.name, p.color order by g.scope, g.created_at`,
+    [me, week],
+  );
+}
+
+export function goalPct(g: GoalRow) {
+  if (g.status === "done") return 100;
+  if (g.manual_progress != null && !g.subtasks_total) return g.manual_progress;
+  return g.subtasks_total ? Math.round((g.subtasks_done / g.subtasks_total) * 100) : g.manual_progress ?? 0;
+}
+
+export async function saveGoal(actor: Actor, input: { id?: number; title: string; scope: "team" | "personal"; projectId?: number | null; week?: string; note?: string; status?: string; manualProgress?: number | null }) {
+  const week = weekStart(input.week ?? todayISO());
+  if (input.id) {
+    await q(
+      `update goals set title = $2, project_id = $3, note = $4, status = coalesce($5, status), manual_progress = $6, updated_at = now() where id = $1 and (scope = 'team' or owner_id = $7)`,
+      [input.id, input.title.slice(0, 200), input.projectId ?? null, input.note ?? "", input.status ?? null, input.manualProgress ?? null, actor.id],
+    );
+    return input.id;
+  }
+  const row = await one<{ id: number }>(
+    "insert into goals (title, scope, owner_id, project_id, week, note) values ($1, $2, $3, $4, $5, $6) returning id",
+    [input.title.slice(0, 200), input.scope, actor.id, input.projectId ?? null, week, input.note ?? ""],
+  );
+  if (input.scope === "team") await logEvent(actor.id, "goal", `新增本周目标：${input.title}`);
+  return row!.id;
+}
+
+export async function carryOverGoals(actor: Actor, fromWeek: string, toWeek: string) {
+  const rows = await q<{ id: number }>(
+    `insert into goals (title, scope, owner_id, project_id, week, note)
+     select title, scope, $3, project_id, $2, note from goals g
+     where g.week = $1 and g.status not in ('done') and (g.scope = 'team' or g.owner_id = $3)
+       and not exists (select 1 from goals x where x.week = $2 and x.title = g.title and x.scope = g.scope)
+     returning id`,
+    [fromWeek, toWeek, actor.id],
+  );
+  return rows.length;
 }
 
 /* ───────────── search & context ───────────── */
@@ -490,25 +591,90 @@ export async function search(me: number, query: string, limit = 12) {
     .map((x) => x.i);
 }
 
-export function itemLine(i: ItemRow) {
+export function itemLine(i: ItemRow, today = todayISO()) {
   const who = i.kind === "task" ? i.assignee_name ?? i.owner_name : i.owner_name;
   const st = i.kind === "task" ? TASK_STATUS[i.status] : DECISION_STATUS[i.status] ?? (i.status === "resolved" ? "已解决" : "开放");
   const prog = i.kind === "task" && i.subtasks.length ? ` ${i.subtasks.filter((s) => s.done).length}/${i.subtasks.length}` : "";
-  return `[${code(i.kind, i.id)}] (${st}${prog}) ${i.title}${i.body ? ` —— ${i.body}` : ""}${who ? ` · ${who}` : ""}${i.project_name ? ` · ${i.project_name}` : ""}${i.due ? ` · 截止 ${i.due}` : ""}${i.last_update ? ` · 最新：${i.last_update}` : ""}`;
+  const due = i.due_date ? ` · DDL ${i.due_date}（${fmtDue(i.due_date, today)}）` : i.due ? ` · 截止 ${i.due}` : "";
+  return `[${code(i.kind, i.id)}] (${st}${prog}) ${i.title}${i.body ? ` —— ${i.body.slice(0, 160)}` : ""}${who ? ` · ${who}` : ""}${i.project_name ? ` · ${i.project_name}` : ""}${due}${i.last_update ? ` · 最新：${i.last_update}` : ""}`;
 }
 
-export async function contextPack(me: number, projectId?: number | null) {
-  const items = await listItems(me, { projectId: projectId ?? undefined, limit: 300 });
-  const project = projectId ? await one<{ name: string; description: string }>("select name, description from projects where id = $1", [projectId]) : null;
-  const ws = await getSetting("workspace_name", "SimReal");
-  const confirmed = items.filter((i) => i.kind === "decision" && i.status === "confirmed").slice(0, 25);
-  const pending = items.filter((i) => i.kind === "decision" && (i.status === "discussing" || i.status === "conflict")).slice(0, 10);
-  const tasks = items.filter((i) => i.kind === "task" && i.status !== "done").slice(0, 20);
-  const questions = items.filter((i) => i.kind === "question" && i.status === "open").slice(0, 10);
-  const sec = (t: string, rows: ItemRow[]) => (rows.length ? `\n${t}：\n${rows.map((r) => `- ${itemLine(r)}`).join("\n")}\n` : "");
-  return `## ${ws}${project ? ` · ${project.name}` : ""} 团队上下文（${new Date().toISOString().slice(0, 10)}）
-${project?.description ? `\n${project.description}\n` : ""}${sec("已确认的共识", confirmed)}${sec("讨论中的决策", pending)}${sec("进行中的任务", tasks)}${sec("待定问题", questions)}
-回答时请遵循以上团队共识；如果你的建议与某条共识冲突，请明确指出编号。`.trim();
+/* ───────────── context engine: what every AI reads ───────────── */
+
+export type ContextScope = "team" | "project" | "me";
+export type ContextOptions = { projectId?: number | null; topic?: string; scope?: ContextScope; budget?: number };
+export type BuiltContext = { text: string; tokens: number; asOf: string; sections: { name: string; shown: number; total: number }[] };
+
+/**
+ * Assembles the team memory into one prompt-ready document, most important first, within a token budget.
+ * Layers: team profile → project brief → this week's goals → items relevant to the topic → confirmed consensus →
+ * open decisions → active tasks by DDL → open questions → recent insights → rules for the AI.
+ */
+export async function buildContext(me: number, opts: ContextOptions = {}): Promise<BuiltContext> {
+  const budget = opts.budget ?? 6000;
+  const today = todayISO();
+  const projectId = opts.projectId ?? null;
+  const [ws, brief, items, goals, project, meRow] = await Promise.all([
+    getSetting("workspace_name", "SimReal"),
+    getSetting("team_brief", ""),
+    listItems(me, { projectId: projectId ?? undefined, limit: 500 }),
+    listGoals(me, weekStart(today)),
+    projectId ? one<{ name: string; description: string; context: string }>("select name, description, context from projects where id = $1", [projectId]) : Promise.resolve(null),
+    one<{ name: string }>("select coalesce(name, email) as name from users where id = $1", [me]),
+  ]);
+  const visible = items.filter((i) => i.kind !== "idea" || (opts.scope === "me" && i.owner_id === me));
+  const mine = (i: ItemRow) => i.assignee_id === me || i.owner_id === me;
+  const pick = opts.scope === "me" ? visible.filter(mine) : visible;
+
+  const out: string[] = [];
+  const sections: BuiltContext["sections"] = [];
+  let used = 0;
+  const push = (text: string) => { out.push(text); used += estimateTokens(text); };
+  const section = (name: string, lines: string[], reserve = 400) => {
+    if (!lines.length) return;
+    const shown: string[] = [];
+    for (const l of lines) {
+      if (used + estimateTokens(l) > budget - reserve && shown.length) break;
+      shown.push(l);
+      used += estimateTokens(l);
+    }
+    out.push(`\n## ${name}\n${shown.join("\n")}${shown.length < lines.length ? `\n- …另有 ${lines.length - shown.length} 条（用 search_team_memory 查询）` : ""}`);
+    sections.push({ name, shown: shown.length, total: lines.length });
+  };
+
+  const scopeLabel = project ? ` · 项目「${project.name}」` : opts.scope === "me" ? ` · ${meRow?.name ?? ""} 的工作` : "";
+  push(`# ${ws} 团队上下文${scopeLabel}\n更新于 ${today}（${fmtDay(today).split(" ")[1]}）。条目编号可直接引用，例如 [D-12]。`);
+  if (brief.trim()) section("团队档案", [brief.trim().slice(0, 2400)], 1500);
+  if (project) section("项目背景", [(project.context || project.description || "").trim()].filter(Boolean), 1500);
+
+  const pct = (g: GoalRow) => `${goalPct(g)}%`;
+  section("本周目标", goals.filter((g) => opts.scope !== "me" || g.scope === "team" || g.owner_id === me)
+    .map((g) => `- ${g.scope === "personal" ? `[个人·${g.owner_name}] ` : ""}${g.title}（${pct(g)}${g.status === "at_risk" ? "，有风险" : g.status === "done" ? "，已完成" : ""}）`));
+
+  if (opts.topic?.trim()) {
+    const hits = (await search(me, opts.topic, 12)).filter((i) => i.kind !== "idea");
+    section(`与「${opts.topic.trim().slice(0, 30)}」相关`, hits.map((i) => `- ${itemLine(i, today)}`));
+  }
+
+  section("已确认的共识（必须遵循）", pick.filter((i) => i.kind === "decision" && i.status === "confirmed").map((i) => `- ${itemLine(i, today)}`));
+  section("讨论中 / 有冲突的决策（尚未定论）", pick.filter((i) => i.kind === "decision" && (i.status === "discussing" || i.status === "conflict")).map((i) => `- ${itemLine(i, today)}`));
+  const byDue = (a: ItemRow, b: ItemRow) => (a.due_date ?? "9999") < (b.due_date ?? "9999") ? -1 : (a.due_date ?? "9999") > (b.due_date ?? "9999") ? 1 : 0;
+  section("进行中的任务（按 DDL 排序）", pick.filter((i) => i.kind === "task" && i.status !== "done").sort(byDue).map((i) => `- ${itemLine(i, today)}`));
+  section("待定问题", pick.filter((i) => i.kind === "question" && i.status === "open").map((i) => `- ${itemLine(i, today)}`));
+  const since = addDays(today, -21);
+  section("近期洞察", pick.filter((i) => i.kind === "insight" && i.created_at.slice(0, 10) >= since).map((i) => `- ${itemLine(i, today)}`));
+  if (opts.scope === "me") section("我的想法（仅自己可见）", pick.filter((i) => i.kind === "idea" && i.status === "open").map((i) => `- ${itemLine(i, today)}`));
+
+  out.push(`\n## 给 AI 的规则
+- 回答前先对照「已确认的共识」；如果你的建议与某条共识冲突，明确指出编号并说明理由，不要默默推翻。
+- 「讨论中」的决策还没定论，可以给意见，但不要当作既定事实。
+- 对话中出现新的决策、任务或 DDL 时，在回答末尾用一行列出，方便同步回团队。`);
+  const text = out.join("\n");
+  return { text, tokens: estimateTokens(text), asOf: today, sections };
+}
+
+export async function contextPack(me: number, projectId?: number | null, topic?: string) {
+  return (await buildContext(me, { projectId, topic })).text;
 }
 
 /* ───────────── discussion ───────────── */

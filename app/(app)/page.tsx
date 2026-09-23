@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/session";
 import { q } from "@/lib/db";
-import { ackThreshold, listItems, listMembers, listProjects, sinceLastVisit } from "@/lib/core";
+import { ackThreshold, goalPct, listGoals, listItems, listMembers, listProjects, sinceLastVisit } from "@/lib/core";
 import { agree, resolveConflict } from "@/lib/actions";
-import { ago, code, progressOf, SOURCES, sourceOf, TASK_STATUS } from "@/lib/meta";
+import { addDays, ago, code, progressOf, SOURCES, sourceOf, TASK_STATUS, todayISO, weekStart } from "@/lib/meta";
 import { ActionButton, NewItemButton } from "@/components/client";
 import { DecisionRow } from "@/components/items";
-import { Avatar, Icon, Proj, Progress, Source, Spark } from "@/components/ui";
+import { Avatar, DueChip, Icon, Proj, Progress, Source, Spark } from "@/components/ui";
 
 export const metadata = { title: "总览" };
 
@@ -17,7 +17,10 @@ function greet() {
 
 export default async function Overview() {
   const me = await requireUser();
-  const [items, projects, members, threshold, since] = await Promise.all([listItems(me.id, { limit: 500 }), listProjects(), listMembers(), ackThreshold(), sinceLastVisit(me.id)]);
+  const today = todayISO();
+  const [items, projects, members, threshold, since, goals] = await Promise.all([listItems(me.id, { limit: 500 }), listProjects(), listMembers(), ackThreshold(), sinceLastVisit(me.id), listGoals(me.id, weekStart(today))]);
+  const teamGoals = goals.filter((g) => g.scope === "team");
+  const myGoals = goals.filter((g) => g.scope === "personal" && g.owner_id === me.id);
   const changes = await q<{ id: number; type: string; text: string; created_at: string; user_id: number; name: string; item_id: number | null; kind: string | null; title: string | null; conv_title: string | null }>(
     `select e.id, e.type, e.text, e.created_at, e.user_id, u.name, e.item_id, i.kind, i.title, c.title as conv_title
      from events e join users u on u.id = e.user_id left join items i on i.id = e.item_id left join conversations c on c.id = e.conversation_id
@@ -222,6 +225,36 @@ export default async function Overview() {
         </div>
 
         <div className="col">
+          <section className="box">
+            <div className="box-h"><h2>本周目标</h2><Link className="link" href="/week">本周 <Icon name="arrow" className="i sm" /></Link></div>
+            {teamGoals.length || myGoals.length ? (
+              <div className="mini-goals">
+                {[...teamGoals, ...myGoals].slice(0, 6).map((g) => {
+                  const pct = goalPct(g);
+                  return (
+                    <Link key={g.id} href="/week" className="mini-goal">
+                      <span className="mg-t">{g.scope === "personal" ? <span className="pill">我的</span> : null}{g.title}</span>
+                      <span className="mg-b"><span className={`prog ${g.status === "done" ? "done" : g.status === "at_risk" ? "blocked" : ""}`}><span style={{ width: `${pct}%` }} /></span><span className="mono">{pct}%</span></span>
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : <div className="empty" style={{ padding: 20 }}><p>还没有本周目标。</p><Link className="btn sm" href="/week">设定本周目标</Link></div>}
+          </section>
+
+          <section className="box">
+            <div className="box-h"><h2>我的 DDL</h2><Link className="link" href="/tasks?v=timeline">时间线 <Icon name="arrow" className="i sm" /></Link></div>
+            {(() => {
+              const mineDue = tasks.filter((t) => t.assignee_id === me.id && t.status !== "done" && t.due_date && t.due_date <= addDays(today, 7))
+                .sort((a, b) => (a.due_date! < b.due_date! ? -1 : 1)).slice(0, 6);
+              return mineDue.length ? (
+                <ul className="plist pad">
+                  {mineDue.map((t) => <li key={t.id}><DueChip date={t.due_date} status={t.status} today={today} /><Link href={`/item/${t.id}`}>{t.title}</Link></li>)}
+                </ul>
+              ) : <div className="empty" style={{ padding: 20 }}><p>未来 7 天没有到期的任务。</p></div>;
+            })()}
+          </section>
+
           <section className="box">
             <div className="box-h"><h2>项目进度</h2><Link className="link" href="/tasks">任务看板 <Icon name="arrow" className="i sm" /></Link></div>
             {projRows.length ? projRows.map((p) => (

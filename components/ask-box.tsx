@@ -27,7 +27,7 @@ function Rich({ text }: { text: string }) {
   );
 }
 
-export function AskBox({ initial, ai }: { initial: string; ai: boolean }) {
+export function AskBox({ initial, ai, autoFocus = true }: { initial: string; ai: boolean; autoFocus?: boolean }) {
   const [q, setQ] = useState(initial);
   const [asked, setAsked] = useState("");
   const [ans, setAns] = useState<Answer | null>(null);
@@ -46,7 +46,7 @@ export function AskBox({ initial, ai }: { initial: string; ai: boolean }) {
     <>
       <form className="box ask" onSubmit={(e) => { e.preventDefault(); ask(q); }}>
         <Icon name="ask" style={{ color: "var(--accent)" }} />
-        <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="例如：我们对支付方案做过哪些决定？" aria-label="提问" />
+        <input autoFocus={autoFocus} value={q} onChange={(e) => setQ(e.target.value)} placeholder="例如：我们对支付方案做过哪些决定？" aria-label="提问" />
         <button className="btn pri" disabled={pending || !q.trim()}>{pending ? <span className="spin" /> : null}提问</button>
       </form>
       <div className="chips">

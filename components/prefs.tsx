@@ -31,7 +31,7 @@ export function NotifyForm({ slack, feishu, wecom, disabled }: { slack: string; 
   );
   return (
     <form className="stack" onSubmit={(e) => { e.preventDefault(); start(async () => report(await saveNotifications(v))); }}>
-      {field("feishu", "飞书群机器人", "https://open.feishu.cn/open-apis/bot/v2/hook/...", "群设置 → 群机器人 → 添加机器人 → 自定义机器人，复制 Webhook 地址")}
+      {field("feishu", "Lark / 飞书群机器人", "https://open.larksuite.com/open-apis/bot/v2/hook/...", "Lark 群设置 → 机器人 → 添加机器人 → 自定义机器人，复制 Webhook 地址。消息会以卡片形式发送，带「在 SimReal 中打开」按钮")}
       {field("wecom", "企业微信群机器人", "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=...", "群聊 → 右上角 … → 群机器人 → 添加，复制 Webhook 地址")}
       {field("slack", "Slack Incoming Webhook", "https://hooks.slack.com/services/...", "Slack App → Incoming Webhooks → 选择频道")}
       <div className="row">

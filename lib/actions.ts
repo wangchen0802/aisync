@@ -9,7 +9,7 @@ import { one, q } from "@/lib/db";
 import { aiEnabled, askWithAI } from "@/lib/ai";
 import { buildDigest, pushDigest } from "@/lib/digest";
 import { notifyStrict } from "@/lib/notify";
-import { PROJECT_COLORS, type Subtask } from "@/lib/meta";
+import { code, PROJECT_COLORS, type Subtask } from "@/lib/meta";
 import { signOut } from "@/auth";
 
 export type Result = { ok: true; message?: string } | { ok: false; error: string };
@@ -128,12 +128,12 @@ export async function reopenDecision(itemId: number) {
 
 /* ───────────── items ───────────── */
 
-export async function createItem(input: { kind: string; title: string; body?: string; projectId?: number | null; assigneeId?: number | null; due?: string; subtasks?: string[]; blockedBy?: number | null }) {
+export async function createItem(input: Omit<core.NewItem, "source">) {
   const me = await requireUser();
   if (!input.title.trim()) return { ok: false, error: "请填写标题" } as Result;
   return run(async () => {
     await core.createItem(me, { ...input, title: input.title.trim() });
-    return "已创建";
+    return input.kind === "idea" ? "已记下，只有你自己可见" : "已创建";
   });
 }
 
@@ -147,7 +147,7 @@ export async function setSubtasks(taskId: number, subtasks: Subtask[]) {
   return run(() => core.setSubtasks(me, taskId, subtasks));
 }
 
-export async function editItem(itemId: number, patch: { title?: string; body?: string; due?: string; assigneeId?: number | null; projectId?: number | null }) {
+export async function editItem(itemId: number, patch: core.ItemPatch) {
   const me = await requireUser();
   return run(async () => {
     await core.editItem(me, itemId, patch);
@@ -186,7 +186,7 @@ export async function askTeam(question: string): Promise<{ answer: string; ai: b
     };
   }
   try {
-    const answer = await askWithAI(question, pool.map(core.itemLine).join("\n"));
+    const answer = await askWithAI(question, pool.map((i) => core.itemLine(i)).join("\n"));
     const codes = new Set([...answer.matchAll(/\[([DTIQ])-(\d+)\]/g)].map((m) => Number(m[2])));
     return { ai: true, answer, cites: pool.filter((i) => codes.has(i.id)).map((h) => ({ id: h.id, kind: h.kind, title: h.title, status: h.status })) };
   } catch (e) {
@@ -324,4 +324,118 @@ export async function regenerateToken() {
 
 export async function logout() {
   await signOut({ redirectTo: "/login" });
+}
+
+/* ───────────── ideas ───────────── */
+
+export async function shareIdea(id: number) {
+  const me = await requireUser();
+  return run(async () => {
+    await core.shareIdea(me, id);
+    return "已分享给团队";
+  });
+}
+
+export async function convertIdea(id: number, kind: "decision" | "task" | "question") {
+  const me = await requireUser();
+  return run(async () => {
+    const newId = await core.convertIdea(me, id, kind);
+    return `已转为${{ decision: "决策", task: "任务", question: "待定问题" }[kind]} ${code(kind, newId)}`;
+  });
+}
+
+/* ───────────── weekly goals ───────────── */
+
+export async function saveGoal(input: { id?: number; title: string; scope: "team" | "personal"; projectId?: number | null; week?: string; note?: string; status?: string; manualProgress?: number | null }) {
+  const me = await requireUser();
+  if (!input.title.trim()) return { ok: false, error: "目标不能为空" } as Result;
+  return run(async () => {
+    await core.saveGoal(me, { ...input, title: input.title.trim() });
+    return input.id ? "目标已更新" : "已添加本周目标";
+  });
+}
+
+export async function setGoalStatus(id: number, status: "on_track" | "at_risk" | "done" | "missed") {
+  const me = await requireUser();
+  return run(async () => {
+    await q("update goals set status = $2, updated_at = now() where id = $1 and (scope = 'team' or owner_id = $3)", [id, status, me.id]);
+  });
+}
+
+export async function deleteGoal(id: number) {
+  const me = await requireUser();
+  return run(async () => {
+    await q("update items set goal_id = null where goal_id = $1", [id]);
+    await q("delete from goals where id = $1 and (owner_id = $2 or $3)", [id, me.id, me.role === "admin"]);
+    return "目标已删除";
+  });
+}
+
+export async function carryOverGoals(fromWeek: string, toWeek: string) {
+  const me = await requireUser();
+  return run(async () => {
+    const n = await core.carryOverGoals(me, fromWeek, toWeek);
+    return n ? `已把 ${n} 个未完成目标带到本周` : "没有需要延续的目标";
+  });
+}
+
+/* ───────────── context ───────────── */
+
+export async function saveTeamBrief(text: string) {
+  const me = await requireUser();
+  return run(async () => {
+    await core.setSetting("team_brief", text.slice(0, 8000));
+    await core.setSetting("team_brief_meta", JSON.stringify({ by: me.name, at: new Date().toISOString() }));
+    await core.logEvent(me.id, "context", "更新了团队档案");
+    return "团队档案已保存，所有 AI 下次读取时生效";
+  });
+}
+
+export async function saveProjectContext(projectId: number, text: string) {
+  const me = await requireUser();
+  return run(async () => {
+    await q("update projects set context = $2 where id = $1", [projectId, text.slice(0, 6000)]);
+    await core.logEvent(me.id, "context", "更新了项目背景");
+    return "项目背景已保存";
+  });
+}
+
+export async function previewContext(opts: { scope: core.ContextScope; projectId?: number | null; topic?: string; budget?: number }) {
+  const me = await requireUser();
+  return core.buildContext(me.id, { ...opts, projectId: opts.scope === "project" ? opts.projectId ?? null : null });
+}
+
+export async function rotateContextKey() {
+  const me = await requireUser();
+  return run(async () => {
+    await q("update users set context_key = $2 where id = $1", [me.id, `ctx_${randomBytes(18).toString("base64url")}`]);
+    return "已生成新的只读链接，旧链接失效";
+  });
+}
+
+export async function pushWeeklyReview(week: string) {
+  const me = await requireUser();
+  return run(async () => {
+    const mon = week;
+    const sun = new Date(new Date(`${mon}T00:00:00Z`).getTime() + 6 * 864e5).toISOString().slice(0, 10);
+    const goals = (await core.listGoals(me.id, mon)).filter((g) => g.scope === "team");
+    const done = await q<{ title: string; who: string | null }>(
+      "select i.title, u.name as who from items i left join users u on u.id = i.assignee_id where i.kind = 'task' and i.visibility = 'team' and i.completed_at >= ($1::date - interval '8 hours') and i.completed_at < ($2::date + interval '16 hours') order by i.completed_at",
+      [mon, sun],
+    );
+    const decided = await q<{ id: number; title: string }>(
+      "select id, title from items where kind = 'decision' and visibility = 'team' and status = 'confirmed' and updated_at >= $1::date and updated_at < ($2::date + 1)",
+      [mon, sun],
+    );
+    const ws = await core.getSetting("workspace_name", "SimReal");
+    await notifyStrict(`🗓 ${ws} 本周回顾（${mon.slice(5)} – ${sun.slice(5)}）`, [
+      "**目标**",
+      ...(goals.length ? goals.map((g) => `${g.status === "done" ? "✅" : g.status === "at_risk" ? "⚠️" : "•"} ${g.title}（${core.goalPct(g)}%）`) : ["（本周没有设定目标）"]),
+      "",
+      `**完成 ${done.length} 个任务**`,
+      ...done.slice(0, 12).map((d) => `✓ ${d.title}${d.who ? `（${d.who}）` : ""}`),
+      ...(decided.length ? ["", `**达成 ${decided.length} 项共识**`, ...decided.slice(0, 8).map((d) => `• ${code("decision", d.id)} ${d.title}`)] : []),
+    ], `/week?w=${mon}`);
+    return "本周回顾已发到群";
+  });
 }

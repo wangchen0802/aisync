@@ -4,10 +4,10 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { deleteItem, editItem, moveTask, setSubtasks } from "@/lib/actions";
 import { ago, code, TASK_COLUMNS, TASK_STATUS, avatarColor, sourceOf, type Subtask } from "@/lib/meta";
 import { report, toast } from "@/components/client";
-import { Icon } from "@/components/ui";
+import { DueChip, Icon } from "@/components/ui";
 
 export type TaskCardData = {
-  id: number; title: string; body: string; status: string; subtasks: Subtask[]; source: string; due: string | null;
+  id: number; title: string; body: string; status: string; subtasks: Subtask[]; source: string; due: string | null; due_date: string | null;
   assignee_id: number | null; assignee_name: string | null; owner_id: number | null; project_id: number | null; project_name: string | null; project_color: string | null;
   last_update: string | null; last_update_at: string | null; last_update_source?: string | null; blocked_by: number | null; duplicate_of: number | null; details: { reason?: string };
 };
@@ -70,15 +70,15 @@ function Card({ t, members, meId, canDelete, onMove }: { t: TaskCardData; member
               <select className="select sm" value={t.assignee_id ?? ""} onChange={(e) => start(async () => report(await editItem(t.id, { assigneeId: Number(e.target.value) || null })))} aria-label="负责人">
                 {members.map((m) => <option key={m.id} value={m.id}>{m.id === meId ? `${m.name}（我）` : m.name}</option>)}
               </select>
-              <input className="input sm" style={{ width: 90 }} defaultValue={t.due ?? ""} placeholder="截止" aria-label="截止"
-                onBlur={(e) => e.target.value !== (t.due ?? "") && start(async () => report(await editItem(t.id, { due: e.target.value })))} />
+              <input className="input sm" type="date" style={{ width: 140 }} defaultValue={t.due_date ?? ""} aria-label="DDL"
+                onChange={(e) => start(async () => report(await editItem(t.id, { dueDate: e.target.value || null })))} />
               {canDelete ? <button className="btn sm ghost danger" onClick={() => start(async () => report(await deleteItem(t.id)))}><Icon name="trash" /></button> : null}
             </div>
           </div>
         ) : null}
       </div>
       <div className="meta">
-        <Icon name="clock" className="i sm" /><span>{t.due || "无截止"}</span><span className="grow" />
+        {t.due_date ? <DueChip date={t.due_date} status={t.status} /> : <span className="faint">无 DDL</span>}<span className="grow" />
         {NEXT[t.status] ? <button className="btn sm advance" onClick={() => onMove(NEXT[t.status]![0], t.id)}>{NEXT[t.status]![1]} <Icon name="arrow" className="i sm" /></button> : null}
         <button className="more" aria-expanded={open} onClick={() => setOpen(!open)}><Icon name="chev" />{open ? "收起" : "编辑"}</button>
       </div>

@@ -4,8 +4,10 @@ import GitHub from "next-auth/providers/github";
 import Credentials from "next-auth/providers/credentials";
 import { timingSafeEqual } from "node:crypto";
 import { one, q } from "@/lib/db";
+import { verifyTicket } from "@/lib/lark-auth";
 
 export const authProviders = {
+  lark: Boolean(process.env.LARK_APP_ID && process.env.LARK_APP_SECRET),
   google: Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET),
   github: Boolean(process.env.AUTH_GITHUB_ID && process.env.AUTH_GITHUB_SECRET),
   passcode: Boolean(process.env.TEAM_PASSCODE),
@@ -51,6 +53,23 @@ function safeEqual(a: string, b: string) {
 const providers: NextAuthConfig["providers"] = [];
 if (authProviders.google) providers.push(Google);
 if (authProviders.github) providers.push(GitHub);
+if (authProviders.lark) {
+  providers.push(
+    Credentials({
+      id: "lark",
+      name: "Lark",
+      credentials: { ticket: {} },
+      async authorize(c) {
+        const who = verifyTicket(String(c?.ticket ?? ""));
+        if (!who) return null;
+        // Lark users come from your own tenant (internal app), so they are team members by definition.
+        await upsertUser(who.email, who.name, who.image);
+        await q("update users set lark_open_id = $2, image = coalesce($3, image) where lower(email) = $1", [who.email, who.openId, who.image]);
+        return { id: who.email, email: who.email, name: who.name, image: who.image };
+      },
+    }),
+  );
+}
 if (authProviders.passcode) {
   providers.push(
     Credentials({
@@ -79,7 +98,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async signIn({ user, account }) {
       if (!user.email) return false;
-      if (account?.provider === "passcode") return true;
+      if (account?.provider === "passcode" || account?.provider === "lark") return true;
       return isAllowed(user.email);
     },
     async jwt({ token, user }) {

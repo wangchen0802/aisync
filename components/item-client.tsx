@@ -34,8 +34,8 @@ export function CommentForm({ itemId, placeholder = "写下你的看法，⌘/Ct
 }
 
 export function TaskControls({
-  id, status, subtasks, assigneeId, due, members,
-}: { id: number; status: string; subtasks: Subtask[]; assigneeId: number | null; due: string | null; members: { id: number; name: string }[] }) {
+  id, status, subtasks, assigneeId, due, members, goals = [], goalId = null,
+}: { id: number; status: string; subtasks: Subtask[]; assigneeId: number | null; due: string | null; members: { id: number; name: string }[]; goals?: { id: number; title: string }[]; goalId?: number | null }) {
   const [st, setSt] = useState(status);
   const [subs, setSubs] = useState(subtasks);
   const [newSub, setNewSub] = useState("");
@@ -77,10 +77,18 @@ export function TaskControls({
             {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
         </label>
-        <label className="field"><span>截止</span>
-          <input className="input" defaultValue={due ?? ""} placeholder="例如：周五" onBlur={(e) => e.target.value !== (due ?? "") && start(async () => report(await editItem(id, { due: e.target.value })))} />
+        <label className="field"><span>DDL</span>
+          <input className="input" type="date" defaultValue={due ?? ""} onChange={(e) => start(async () => report(await editItem(id, { dueDate: e.target.value || null })))} />
         </label>
       </div>
+      {goals.length ? (
+        <label className="field"><span>关联本周目标</span>
+          <select className="select" defaultValue={goalId ?? ""} onChange={(e) => start(async () => report(await editItem(id, { goalId: Number(e.target.value) || null })))}>
+            <option value="">不关联</option>
+            {goals.map((g) => <option key={g.id} value={g.id}>{g.title}</option>)}
+          </select>
+        </label>
+      ) : null}
     </div>
   );
 }
