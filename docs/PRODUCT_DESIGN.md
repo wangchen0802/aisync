@@ -1,6 +1,8 @@
-# AISync 产品设计文档 v0.1
+# AISync 产品设计文档 v0.2
 
-> 一句话：**把团队散落在 ChatGPT / Claude / Cursor / Gemini 里的 AI 对话，自动提炼成大家都看得见的「决策、任务、结论」，再把这些团队共识喂回每个人的 AI。**
+> 一句话：**把团队散落在 ChatGPT / Claude / DeepSeek / Gemini / Grok / Cursor 等工具里的 AI 对话，自动提炼成大家都看得见的「共识」和「任务进度」，再把这些团队共识喂回每个人的 AI。**
+>
+> v0.2 变更：主界面聚焦**共识**与**任务进度**；原始细节改为可选（精简 / 标准 / 完整 三档 + 单条展开）；扩展支持的 AI 工具；新增总览页、共识确认流程、任务自动进度、⌘K 命令面板、AI 接入管理页。
 
 ---
 
@@ -67,15 +69,21 @@
 
 ### ① 捕获（Capture）
 
-| 渠道 | 覆盖工具 | MVP |
-| --- | --- | --- |
-| Chrome 插件 | ChatGPT、Claude.ai、Gemini、Perplexity 网页版 | ✅ |
-| Claude Code / Cursor 钩子 + MCP | 会话结束时自动推送摘要 | ✅ |
-| 分享链接 / 导出文件导入 | 各家官方 share link、JSON 导出 | ✅ |
-| 手动粘贴 | 任意 | ✅ |
-| 桌面端（原生 App 窗口） | ChatGPT / Claude 桌面版 | 后续 |
-| API 代理 | 团队自建的 AI 应用 | 后续 |
+| AI 工具 | 形态 | 捕获方式 | MVP |
+| --- | --- | --- | --- |
+| ChatGPT | 网页 / 桌面 | 浏览器插件；官方导出兜底 | ✅ |
+| Claude | 网页 / 桌面 | 浏览器插件；官方导出兜底 | ✅ |
+| DeepSeek | 网页 | 浏览器插件 | ✅ |
+| Gemini | 网页 | 浏览器插件 | ✅ |
+| Grok | 网页 / X 内嵌 | 浏览器插件 | ✅ |
+| Claude Code | CLI | SessionEnd Hook + MCP | ✅ |
+| Cursor | IDE | MCP | ✅ |
+| Perplexity、Kimi、豆包、通义千问 | 网页 | 浏览器插件（站点适配器） | 第二批 |
+| GitHub Copilot 等 IDE 助手 | IDE | 导出导入 | 第二批 |
+| 自建 AI 应用 | API | API 代理 / SDK | 后续 |
+| 任意工具 | — | 粘贴或上传对话 | ✅ |
 
+- 插件采用**站点适配器**架构：每个 AI 一份选择器配置，远程下发。新增一个 AI 通常只需要写一份配置，不用发新版插件。
 - 插件只读取**用户自己当前页面**的对话，不抓取、不代登录。
 - 用户可设置：全自动捕获 / 仅手动点"同步此对话" / 按站点白名单。
 
@@ -108,6 +116,40 @@
 - **重复工作提醒**：检测到你正在研究的主题与队友近 7 天的会话高度相似 → "Alice 昨天也调研了 Stripe vs Paddle，看看她的结论？"
 - **冲突检测**：新决策与已有决策矛盾 → 标红并通知双方，一键发起讨论或标记取代关系。
 
+### 共识的生命周期（核心对象 1）
+
+```
+AI 对话中提出 → 讨论中 ──(相关成员确认 ≥ N 人 / Owner 拍板)──→ 已确认
+                  │                                           │
+                  └──(与已有共识矛盾)──→ 有冲突 ──(选择一方)────┘
+已确认 ──(被新共识取代)──→ 已推翻（保留链接，可追溯）
+```
+
+- 每条共识都有编号（如 `D-24`），可以在任何 AI 对话里引用。
+- **确认机制**：决策发布后，涉及的项目成员会收到请求，一键「同意」或「提出异议」。达到阈值（默认 3 人或 Owner 拍板）即成为共识。
+- **冲突解决**：并排对比两边的结论和来源 AI，一键采用某一方，或到 Slack 发起讨论。结果会自动同步给所有接入的 AI。
+- 共识确认后，自动解除依赖它的任务阻塞。
+
+### 任务进度（核心对象 2）
+
+- 任务从 AI 对话中抽取（「Bob：周五前完成结算页」），自动识别负责人和截止时间。
+- **进度自动更新**：负责人之后在任意 AI 里继续做这件事时，系统会匹配到任务，并更新子任务完成情况和"最新进展"一句话（如「Cursor：完成 /cancel 页面 · 12 分钟前」）。不需要手动填进度。
+- 看板有四列：待开始 / 进行中 / 阻塞 / 已完成。支持拖动，也支持双向同步到 Linear / Jira / 飞书。
+- 阻塞与依赖：任务可以依赖某条共识，比如 T-35 依赖 D-22；共识确认后自动解除阻塞。
+- 重复检测：两个人的任务语义相似时，会提示可能在重复做同一件事。
+
+### 细节可选（信息密度控制）
+
+团队成员默认只需要看**结论**，细节按需展开：
+
+| 档位 | 共识显示 | 任务显示 | 适合 |
+| --- | --- | --- | --- |
+| 精简 | 标题 + 状态 + 确认人数 | 标题 + 进度条 | 老板 / 快速扫一眼 |
+| 标准（默认） | + 一句话理由、来源 AI | + 最新进展 | 日常 |
+| 完整 | + 备选方案、原始对话片段、确认名单 | + 子任务清单 | 追溯 / 复盘 |
+
+每一条内容都可以单独点「细节」展开，不受全局档位影响。
+
 ### ⑤ 反哺（让每个 AI 都知道团队共识）
 
 这是留存的关键。
@@ -123,25 +165,28 @@
 
 ```
 Workspace（团队）
-├── 团队动态 Feed          ← 默认首页
-├── 收件箱 Inbox           ← 我的待审核会话
-├── 项目 Projects
-│   ├── 概览：上下文包 · 活跃成员 · 未决问题
-│   ├── 决策日志
-│   ├── 任务
-│   └── 会话
-├── 团队记忆 Memory         ← 全局搜索 + 问答
-├── 简报 Digest
-└── 设置：成员 · 集成 · 捕获规则 · 隐私
+├── 总览 Home            ← 默认首页：需要你处理 · 最新共识 · 项目进度 · 任务动态
+├── 共识 Consensus       ← 全部 / 已确认 / 讨论中 / 有冲突 / 已推翻
+├── 任务进度 Tasks        ← 看板，进度自动更新
+├── 动态 Activity         ← 每个 AI 会话的一句话摘要
+├── 收件箱 Inbox          ← 我的待审核会话
+├── 问团队记忆 Ask        ← 自然语言问答 + MCP + 上下文包
+├── 每日简报 Digest
+├── AI 接入 Integrations  ← 对话来源（12+ AI）· 同步目标 · 隐私与脱敏
+└── 项目（侧边栏筛选）
+全局：⌘K 命令面板 · 细节档位切换
 ```
 
 ## 6. 关键页面
 
-1. **团队动态**：三栏布局 —— 左侧项目/成员导航，中间卡片流，右侧"需要你关注"（冲突、@你的问题、重复提醒）。
-2. **收件箱**：左侧会话列表（显示来源工具图标），右侧提炼结果预览 + 脱敏高亮 + 发布按钮。
-3. **项目页**：顶部是可复制的上下文包，下方为决策时间线和未决问题。
-4. **团队记忆**：一个搜索框，支持自然语言提问，回答附带来源卡片与原始会话链接。
-5. **简报**：按人 / 按项目两种视图，今日要点 + 新决策 + 阻塞。
+1. **总览**：顶部 4 个指标（本周新共识、进行中任务、待决/冲突、阻塞）；左侧是「需要你处理」（冲突、等你拍板、重复工作）和最新共识；右侧是项目进度、实时任务动态、各 AI 的使用分布。
+2. **共识**：按状态分组的列表；每条显示编号、结论、确认头像、来源 AI；冲突项内嵌并排对比与一键解决。
+3. **任务进度**：四列看板，卡片显示进度条、最新进展、阻塞原因、重复提醒。
+4. **收件箱**：会话列表 + 提炼结果，敏感信息自动打码并默认不勾选；可以设置自动发布规则。
+5. **问团队记忆**：问答带引用编号；提供 MCP 配置（给 Claude Code / Cursor 用）和上下文包（给 ChatGPT / DeepSeek / Gemini / Grok 等不支持 MCP 的工具用）。
+6. **AI 接入**：每个 AI 一个开关，显示捕获方式与本周会话数；同步目标包括 Slack / 飞书 / Linear / Notion / Jira / 企业微信。
+
+**视觉语言**：参考 Linear / Vercel 的克制风格。中性灰底色，1px 边框，细阴影；黑色主按钮，蓝色只用于进度和链接；状态用语义色（绿 = 已确认/完成，蓝 = 进行中，红 = 冲突/阻塞，灰 = 待开始/已推翻）；字体用 Geist + Geist Mono，编号和数字用等宽字体；支持浅色和深色主题。
 
 可交互原型见 [`prototype/index.html`](../prototype/index.html)。
 
@@ -151,12 +196,16 @@ Workspace（团队）
 Workspace(id, name)
 Member(id, workspace_id, name, role)
 Project(id, workspace_id, name, description, context_pack)
-Session(id, member_id, source[chatgpt|claude|cursor|claude_code|gemini|...],
+Session(id, member_id, source[chatgpt|claude|deepseek|gemini|grok|claude_code|cursor|...],
         source_url, started_at, raw_ref(加密存储), summary,
         visibility[private|team], project_id)
 Card(id, session_id, project_id, type[decision|task|insight|question|artifact],
      title, body, owner_id, status, visibility, embedding,
      supersedes_card_id)
+Ack(card_id, member_id, verdict[agree|object], comment, at)      -- 共识确认
+Task(card_id, assignee_id, due, state[todo|doing|blocked|done],
+     depends_on_card_id, last_update, last_update_session_id)
+Subtask(task_id, title, done, done_by_session_id)                -- 进度自动更新
 Link(card_a, card_b, relation[duplicate|conflict|related|supersedes])
 Digest(id, workspace_id, period, content, sent_at)
 ```
@@ -180,10 +229,10 @@ Digest(id, workspace_id, period, content, sent_at)
 ## 9. MVP 范围（6 周）
 
 **必须有**
-- Chrome 插件：ChatGPT + Claude.ai 捕获
+- Chrome 插件：ChatGPT、Claude、DeepSeek、Gemini、Grok 五个站点适配器
 - Claude Code 钩子（SessionEnd 推送摘要）
 - 提炼流水线：摘要 + 4 种卡片 + 项目归类 + 脱敏
-- 收件箱审核 + 团队动态流
+- 收件箱审核 + 总览 + 共识（确认 / 冲突解决）+ 任务看板（自动进度）
 - 每日简报推送到 Slack
 - MCP Server（只读：`search_team_memory`、`get_project_context`）
 

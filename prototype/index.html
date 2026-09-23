@@ -1,397 +1,728 @@
-<title>AISync 原型</title>
+<title>AISync</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;600;700&display=swap">
 <style>
 :root{
-  --ground:#F2F4F1; --surface:#FFFFFF; --sunk:#E9ECE7; --ink:#1A1F1C; --muted:#646D68; --line:#DCE1DB;
-  --accent:#1E6B58; --accent-soft:#DDEEE8; --on-accent:#FFFFFF;
-  --decision:#2E5CC9; --task:#A86C12; --insight:#2B7F4E; --question:#8E3A86; --conflict:#C03D2B;
-  --decision-bg:#E6ECFA; --task-bg:#F7EEDD; --insight-bg:#E2F1E7; --question-bg:#F4E5F2; --conflict-bg:#FBE7E3;
-  --redact:#FFE9A8;
-  --sans:"IBM Plex Sans","Noto Sans SC",system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
-  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --bg:#FAFAFA; --side:#F5F5F6; --panel:#FFFFFF; --subtle:#F4F4F5; --hover:#EFEFF1;
+  --line:#E7E7EA; --line-2:#D8D8DD;
+  --ink:#09090B; --ink-2:#3F3F46; --muted:#71717A; --faint:#A1A1AA;
+  --accent:#3E63DD; --accent-soft:#EDF2FE; --accent-ink:#3451B2;
+  --primary:#09090B; --on-primary:#FFFFFF;
+  --green:#18794E; --green-bg:#E9F9EE; --amber:#AD5700; --amber-bg:#FFF4D5;
+  --red:#CD2B31; --red-bg:#FFEBEC; --violet:#6E56CF; --violet-bg:#F4F0FE; --gray-bg:#F1F1F3;
+  --redact:#FFE7A3;
+  --shadow:0 1px 2px rgba(16,16,20,.04),0 1px 1px rgba(16,16,20,.02);
+  --shadow-lg:0 12px 40px -8px rgba(16,16,20,.18),0 2px 6px rgba(16,16,20,.06);
+  --sans:"Geist","Noto Sans SC",system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     color-scheme:dark;
-    --ground:#121614; --surface:#1A201D; --sunk:#232A26; --ink:#E6EBE7; --muted:#98A29C; --line:#2E3632;
-    --accent:#5CC2A5; --accent-soft:#1D3A32; --on-accent:#0D1A16;
-    --decision:#8AA8F2; --task:#E3AE5A; --insight:#74C895; --question:#D48BCB; --conflict:#F08A78;
-    --decision-bg:#1E2840; --task-bg:#33291A; --insight-bg:#1A3024; --question-bg:#332031; --conflict-bg:#3A1F1A;
-    --redact:#5A4A12;
+    --bg:#0A0A0B; --side:#0E0E10; --panel:#131316; --subtle:#1A1A1E; --hover:#202025;
+    --line:#26262B; --line-2:#34343A;
+    --ink:#EDEDEF; --ink-2:#C4C4CA; --muted:#8B8B94; --faint:#5E5E66;
+    --accent:#7C9BFF; --accent-soft:#1B2340; --accent-ink:#A3B9FF;
+    --primary:#EDEDEF; --on-primary:#0A0A0B;
+    --green:#4CC38A; --green-bg:#11261B; --amber:#F1A10D; --amber-bg:#2B2111; --red:#FF6369; --red-bg:#301516;
+    --violet:#9E8CFC; --violet-bg:#221B3A; --gray-bg:#1E1E22; --redact:#5A4A12;
+    --shadow:0 1px 2px rgba(0,0,0,.4); --shadow-lg:0 16px 48px -8px rgba(0,0,0,.7),0 0 0 1px var(--line);
   }
 }
 :root[data-theme="dark"]{
   color-scheme:dark;
-  --ground:#121614; --surface:#1A201D; --sunk:#232A26; --ink:#E6EBE7; --muted:#98A29C; --line:#2E3632;
-  --accent:#5CC2A5; --accent-soft:#1D3A32; --on-accent:#0D1A16;
-  --decision:#8AA8F2; --task:#E3AE5A; --insight:#74C895; --question:#D48BCB; --conflict:#F08A78;
-  --decision-bg:#1E2840; --task-bg:#33291A; --insight-bg:#1A3024; --question-bg:#332031; --conflict-bg:#3A1F1A;
-  --redact:#5A4A12;
+  --bg:#0A0A0B; --side:#0E0E10; --panel:#131316; --subtle:#1A1A1E; --hover:#202025;
+  --line:#26262B; --line-2:#34343A;
+  --ink:#EDEDEF; --ink-2:#C4C4CA; --muted:#8B8B94; --faint:#5E5E66;
+  --accent:#7C9BFF; --accent-soft:#1B2340; --accent-ink:#A3B9FF;
+  --primary:#EDEDEF; --on-primary:#0A0A0B;
+  --green:#4CC38A; --green-bg:#11261B; --amber:#F1A10D; --amber-bg:#2B2111; --red:#FF6369; --red-bg:#301516;
+  --violet:#9E8CFC; --violet-bg:#221B3A; --gray-bg:#1E1E22; --redact:#5A4A12;
+  --shadow:0 1px 2px rgba(0,0,0,.4); --shadow-lg:0 16px 48px -8px rgba(0,0,0,.7),0 0 0 1px var(--line);
 }
 
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{height:100%}
-body{background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.55;padding-inline:16px;}
-button{font:inherit;color:inherit;cursor:pointer}
-:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:13.5px;line-height:1.5;-webkit-font-smoothing:antialiased;font-feature-settings:"ss01","cv11"}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px;border-radius:6px}
+svg.i{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.mono{font-family:var(--mono)}
+.tnum{font-variant-numeric:tabular-nums}
 
-.app{max-width:1280px;margin:0 auto;padding-block:16px;display:grid;grid-template-columns:200px minmax(0,1fr) 300px;gap:20px;align-items:start}
+/* ---------- shell ---------- */
+.shell{display:grid;grid-template-columns:240px minmax(0,1fr);min-height:100%}
+.side{background:var(--side);border-right:1px solid var(--line);padding:12px 10px;display:flex;flex-direction:column;gap:14px;position:sticky;top:0;height:100vh;overflow-y:auto}
+.ws{display:flex;align-items:center;gap:9px;padding:4px 6px}
+.logo{width:24px;height:24px;border-radius:6px;background:var(--primary);color:var(--on-primary);display:grid;place-items:center}
+.logo svg{width:14px;height:14px;stroke:var(--on-primary)}
+.ws b{font-weight:600;font-size:14px;letter-spacing:-.01em}
+.ws small{display:block;color:var(--muted);font-size:11.5px;line-height:1.2}
+.search{display:flex;align-items:center;gap:8px;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 8px;color:var(--muted);box-shadow:var(--shadow);text-align:left}
+.search:hover{border-color:var(--line-2)}
+.search span{flex:1}
+kbd{font-family:var(--mono);font-size:10.5px;border:1px solid var(--line);background:var(--subtle);border-radius:4px;padding:0 5px;color:var(--muted)}
+.navg{display:flex;flex-direction:column;gap:1px}
+.navg h6{margin:6px 8px 4px;font-size:11px;font-weight:500;color:var(--faint);letter-spacing:.02em}
+.nv{display:flex;align-items:center;gap:9px;border:0;background:none;border-radius:6px;padding:6px 8px;color:var(--ink-2);text-align:left;width:100%}
+.nv:hover{background:var(--hover);color:var(--ink)}
+.nv[aria-current="page"]{background:var(--panel);color:var(--ink);font-weight:500;box-shadow:var(--shadow),0 0 0 1px var(--line)}
+.nv .sp{flex:1}
+.nv .n{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.nv .n.hot{background:var(--accent);color:#fff;border-radius:999px;padding:0 6px}
+.pdot{width:8px;height:8px;border-radius:2.5px;flex:none}
+.side-foot{margin-top:auto;border-top:1px solid var(--line);padding-top:10px;display:flex;flex-direction:column;gap:8px}
+.live{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);padding:0 8px}
+.pulse{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px color-mix(in srgb,var(--green) 25%,transparent)}
+.provrow{display:flex;flex-wrap:wrap;gap:4px;padding:0 8px}
 
-/* sidebar */
-.side{position:sticky;top:calc(env(safe-area-inset-top,0px) + 16px);display:flex;flex-direction:column;gap:20px}
-.brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:16px}
-.brand-mark{width:28px;height:28px;border-radius:7px;background:var(--accent);display:grid;place-items:center}
-.brand-mark svg{display:block}
-.ws{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.04em}
-.nav{display:flex;flex-direction:column;gap:2px}
-.nav button{display:flex;justify-content:space-between;align-items:center;background:none;border:0;text-align:left;padding:7px 10px;border-radius:6px;color:var(--muted)}
-.nav button:hover{background:var(--sunk);color:var(--ink)}
-.nav button[aria-current="page"]{background:var(--surface);color:var(--ink);font-weight:500;box-shadow:0 0 0 1px var(--line)}
-.count{font-family:var(--mono);font-size:11px;background:var(--accent);color:var(--on-accent);border-radius:999px;padding:0 7px;min-width:20px;text-align:center}
-.count[data-zero="1"]{display:none}
-.side h4{margin:0 0 6px;font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding-inline:10px}
-.proj{display:flex;flex-direction:column;gap:2px}
-.proj button{background:none;border:0;text-align:left;padding:5px 10px;border-radius:6px;color:var(--muted);display:flex;gap:8px;align-items:center}
-.proj button:hover{color:var(--ink)}
-.proj button[aria-pressed="true"]{color:var(--ink);font-weight:500;background:var(--sunk)}
-.dot{width:7px;height:7px;border-radius:2px;background:var(--muted);flex:none}
-.members{display:flex;flex-wrap:wrap;gap:6px;padding-inline:10px}
+/* ---------- main ---------- */
+.main{min-width:0;display:flex;flex-direction:column}
+.top{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 85%,transparent);backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;padding:10px 24px;flex-wrap:wrap}
+.crumb{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:13px}
+.crumb b{color:var(--ink);font-weight:500}
+.top .sp{flex:1}
+.seg{display:inline-flex;background:var(--subtle);border:1px solid var(--line);border-radius:8px;padding:2px;gap:2px}
+.seg button{border:0;background:none;border-radius:6px;padding:3px 10px;font-size:12px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--panel);color:var(--ink);box-shadow:var(--shadow),0 0 0 1px var(--line);font-weight:500}
+.seg-l{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:8px}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel);border-radius:7px;padding:5px 11px;font-size:12.5px;font-weight:500;box-shadow:var(--shadow);white-space:nowrap}
+.btn:hover{border-color:var(--line-2);background:var(--subtle)}
+.btn.pri{background:var(--primary);color:var(--on-primary);border-color:var(--primary)}
+.btn.pri:hover{opacity:.88;background:var(--primary)}
+.btn.ghost{background:none;box-shadow:none;border-color:transparent;color:var(--muted)}
+.btn.ghost:hover{background:var(--hover);color:var(--ink)}
+.btn.sm{padding:3px 9px;font-size:12px}
+.btn svg.i{width:14px;height:14px}
+.content{padding:24px;max-width:1240px;width:100%;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+.ph{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.ph h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.02em;text-wrap:balance}
+.ph p{margin:4px 0 0;color:var(--muted);max-width:64ch}
 
-.av{width:24px;height:24px;border-radius:50%;display:inline-grid;place-items:center;font-size:11px;font-weight:600;color:#fff;flex:none}
+/* ---------- atoms ---------- */
+.av{width:22px;height:22px;border-radius:50%;display:inline-grid;place-items:center;font-size:10.5px;font-weight:600;color:#fff;flex:none;box-shadow:0 0 0 2px var(--panel)}
+.av.lg{width:28px;height:28px;font-size:12px}
+.stack{display:inline-flex}
+.stack .av+.av{margin-left:-6px}
+.pv{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink-2);border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:1px 6px 1px 2px;white-space:nowrap}
+.pv i{width:15px;height:15px;border-radius:4px;display:grid;place-items:center;font-style:normal;font-size:8.5px;font-weight:700;color:#fff;letter-spacing:-.02em;font-family:var(--sans)}
+.pv.only{padding:1px;border:0;background:none}
+.pv.only i{width:18px;height:18px;font-size:9.5px;border-radius:5px}
+.tag{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:500;border-radius:999px;padding:1px 8px;white-space:nowrap}
+.tag::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.s-confirmed,.s-done{color:var(--green);background:var(--green-bg)}
+.s-discussing,.s-doing{color:var(--accent-ink);background:var(--accent-soft)}
+.s-conflict,.s-blocked{color:var(--red);background:var(--red-bg)}
+.s-superseded,.s-todo{color:var(--muted);background:var(--gray-bg)}
+.s-pending{color:var(--amber);background:var(--amber-bg)}
+.kind{font-size:11px;font-weight:600;border-radius:4px;padding:0 6px;line-height:18px}
+.k-decision{color:var(--accent-ink);background:var(--accent-soft)}
+.k-task{color:var(--amber);background:var(--amber-bg)}
+.k-insight{color:var(--green);background:var(--green-bg)}
+.k-question{color:var(--violet);background:var(--violet-bg)}
+.proj{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);white-space:nowrap}
+.meta{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;font-size:12px;color:var(--muted)}
+.prog{height:4px;border-radius:2px;background:var(--subtle);overflow:hidden;flex:1;min-width:40px}
+.prog span{display:block;height:100%;border-radius:2px;background:var(--accent)}
+.prog.done span{background:var(--green)}
+.prog.blocked span{background:var(--red)}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+.box-h{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.box-h h2{margin:0;font-size:13.5px;font-weight:600;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+.box-h .c{font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400}
+.link{border:0;background:none;padding:0;color:var(--accent-ink);font-size:12px;font-weight:500;display:inline-flex;align-items:center;gap:3px}
+.link:hover{text-decoration:underline}
+.more{border:0;background:none;padding:0;color:var(--muted);font-size:12px;display:inline-flex;align-items:center;gap:4px}
+.more:hover{color:var(--ink)}
+.more svg{width:12px;height:12px;transition:transform .15s}
+.more[aria-expanded="true"] svg{transform:rotate(90deg)}
+.detail{margin-top:10px;display:flex;flex-direction:column;gap:10px;font-size:12.5px;color:var(--ink-2)}
+.detail h5{margin:0 0 4px;font-size:11px;color:var(--muted);font-weight:500;letter-spacing:.02em}
+.detail ul{margin:0;padding-left:16px;display:flex;flex-direction:column;gap:2px}
+.quote{border-left:2px solid var(--line-2);padding:6px 10px;background:var(--subtle);border-radius:0 6px 6px 0;color:var(--muted)}
+.quote .who{display:flex;align-items:center;gap:6px;font-size:11px;margin-bottom:3px}
+.empty{padding:36px 16px;text-align:center;color:var(--muted)}
+mark{background:var(--redact);color:inherit;border-radius:3px;padding:0 3px;font-family:var(--mono);font-size:11.5px}
 
-/* main */
-main{min-width:0}
-.head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:end;gap:12px;margin-bottom:14px}
-.head h1{margin:0;font-size:22px;font-weight:600;text-wrap:balance}
-.head p{margin:2px 0 0;color:var(--muted)}
-.filters{display:flex;flex-wrap:wrap;gap:6px}
-.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:3px 11px;font-size:12px;color:var(--muted)}
-.chip[aria-pressed="true"]{background:var(--ink);color:var(--ground);border-color:var(--ink)}
+/* ---------- overview ---------- */
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.st{padding:14px 16px;display:flex;flex-direction:column;gap:6px}
+.st .l{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.st .v{font-size:26px;font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:1.1}
+.st .d{font-size:11.5px;color:var(--muted)}
+.st .d b{font-weight:500;color:var(--green)}
+.st .d b.neg{color:var(--red)}
+.spark{width:100%;height:28px;display:block}
+.ov{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:16px;align-items:start}
+.col{display:flex;flex-direction:column;gap:16px;min-width:0}
+.attn{display:flex;flex-direction:column}
+.at{display:flex;gap:12px;padding:12px 16px;border-top:1px solid var(--line);align-items:flex-start}
+.at:first-child{border-top:0}
+.at-ic{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;flex:none}
+.at-ic svg{width:14px;height:14px}
+.at-b{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.at-b p{margin:0}
+.at-b .vs{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.at-b .vs div{border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:12px;display:flex;flex-direction:column;gap:4px}
+.row-a{display:flex;gap:6px;flex-wrap:wrap}
+.pr{display:grid;grid-template-columns:minmax(110px,160px) minmax(0,1fr) auto;gap:14px;align-items:center;padding:11px 16px;border-top:1px solid var(--line)}
+.pr:first-child{border-top:0}
+.pr .nm{display:flex;align-items:center;gap:8px;font-weight:500;min-width:0}
+.pr .bars{display:flex;align-items:center;gap:10px}
+.pr .pc{font-family:var(--mono);font-size:12px;color:var(--ink-2);width:36px;text-align:right}
+.pr .cnt{font-size:11.5px;color:var(--muted);white-space:nowrap}
+.dist{padding:12px 16px;display:flex;flex-direction:column;gap:8px}
+.dr{display:grid;grid-template-columns:118px minmax(0,1fr) 34px;gap:10px;align-items:center;font-size:12px}
+.dr .b{height:6px;border-radius:3px;background:var(--subtle);overflow:hidden}
+.dr .b span{display:block;height:100%;border-radius:3px}
+.dr .x{font-family:var(--mono);text-align:right;color:var(--ink-2)}
 
-.feed{display:flex;flex-direction:column;gap:10px}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:grid;grid-template-columns:auto 1fr;gap:4px 12px}
-.card .av{grid-row:span 3;margin-top:2px}
-.meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:12px;color:var(--muted)}
-.meta b{color:var(--ink);font-weight:500}
-.src{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-radius:4px;padding:0 6px}
-.type{font-size:11px;font-weight:600;border-radius:4px;padding:1px 7px;letter-spacing:.02em}
-.t-decision{color:var(--decision);background:var(--decision-bg)}
-.t-task{color:var(--task);background:var(--task-bg)}
-.t-insight{color:var(--insight);background:var(--insight-bg)}
-.t-question{color:var(--question);background:var(--question-bg)}
-.t-conflict{color:var(--conflict);background:var(--conflict-bg)}
-.card h3{margin:2px 0 0;font-size:15px;font-weight:600;line-height:1.4;text-wrap:balance}
-.card .body{color:var(--ink);opacity:.86;max-width:68ch}
-.card .foot{display:flex;flex-wrap:wrap;gap:12px;margin-top:6px;grid-column:2}
-.link{background:none;border:0;padding:0;color:var(--accent);font-size:12px;font-weight:500}
-.quote{grid-column:2;margin:6px 0 0;padding:8px 12px;border-left:2px solid var(--line);background:var(--sunk);border-radius:0 6px 6px 0;font-size:13px;color:var(--muted)}
-.quote .who{font-family:var(--mono);font-size:11px;display:block;margin-bottom:2px}
-.new{animation:flash 1.6s ease-out}
-@keyframes flash{from{box-shadow:0 0 0 3px var(--accent)}to{box-shadow:0 0 0 0 transparent}}
+/* ---------- consensus list ---------- */
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);overflow-x:auto}
+.tabs button{border:0;background:none;padding:8px 10px;color:var(--muted);font-size:13px;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.tabs button:hover{color:var(--ink)}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink);font-weight:500}
+.tabs .n{font-family:var(--mono);font-size:11px;color:var(--faint)}
+.list{display:flex;flex-direction:column}
+.it{padding:14px 16px;border-top:1px solid var(--line);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 16px}
+.it:first-child{border-top:0}
+.it:hover{background:color-mix(in srgb,var(--subtle) 50%,transparent)}
+.it h3{margin:0;font-size:14px;font-weight:500;letter-spacing:-.005em;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.it .why{color:var(--ink-2);font-size:12.5px;margin:0;max-width:78ch}
+.it .right{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.it .full{grid-column:1/-1}
+.it .foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.acks{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted)}
+.it.superseded h3{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--line-2)}
 
-/* rail */
-.rail{display:flex;flex-direction:column;gap:14px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 16px)}
-.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px}
-.panel h2{margin:0 0 10px;font-size:13px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
-.alert{padding:10px 0;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
-.alert:first-of-type{border-top:0;padding-top:0}
-.alert p{margin:0;font-size:13px}
-.alert .row{display:flex;gap:8px;flex-wrap:wrap}
-.vs{display:grid;grid-template-columns:1fr;gap:4px;font-size:12px}
-.vs div{background:var(--sunk);border-radius:6px;padding:6px 8px}
-.btn{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:5px 12px;font-size:12px;font-weight:500}
-.btn:hover{border-color:var(--muted)}
-.btn.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
-.btn.primary:hover{filter:brightness(1.08)}
-.stat{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);padding:3px 0}
-.stat b{font-family:var(--mono);color:var(--ink);font-weight:500;font-variant-numeric:tabular-nums}
-.bar{height:6px;border-radius:3px;background:var(--sunk);overflow:hidden;display:flex;margin:8px 0 4px}
-.bar span{display:block;height:100%}
+/* ---------- kanban ---------- */
+.kb-wrap{overflow-x:auto;margin-inline:-4px;padding:0 4px 4px}
+.kb{display:grid;grid-template-columns:repeat(4,minmax(240px,1fr));gap:12px;min-width:1000px}
+.kc{background:var(--subtle);border:1px solid var(--line);border-radius:12px;padding:8px;display:flex;flex-direction:column;gap:8px;min-height:240px}
+.kc.over{border-color:var(--accent);background:var(--accent-soft)}
+.kc-h{display:flex;align-items:center;gap:8px;padding:4px 6px;font-size:12.5px;font-weight:500}
+.kc-h .n{font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400}
+.tk{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:8px;cursor:grab}
+.tk:hover{border-color:var(--line-2)}
+.tk.drag{opacity:.4}
+.tk h4{margin:0;font-size:13px;font-weight:500;line-height:1.4}
+.tk .pg{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);font-family:var(--mono)}
+.tk .upd{font-size:11.5px;color:var(--muted);display:flex;gap:6px;align-items:flex-start}
+.tk .upd .pv{flex:none}
+.tk .bl{font-size:11.5px;color:var(--red);background:var(--red-bg);border-radius:6px;padding:4px 8px}
+.tk .dup{font-size:11.5px;color:var(--amber);background:var(--amber-bg);border-radius:6px;padding:4px 8px}
+.sub{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;font-size:12px}
+.sub li{display:flex;gap:6px;align-items:center;color:var(--ink-2)}
+.sub li.ok{color:var(--muted);text-decoration:line-through}
+.sub li::before{content:"";width:12px;height:12px;border:1.5px solid var(--line-2);border-radius:4px;flex:none}
+.sub li.ok::before{background:var(--green);border-color:var(--green)}
 
-/* inbox */
-.inbox{display:grid;grid-template-columns:240px minmax(0,1fr);gap:14px;align-items:start}
-.sessions{display:flex;flex-direction:column;gap:6px}
-.sess{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;text-align:left;display:flex;flex-direction:column;gap:3px}
-.sess[aria-current="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
-.sess .t{font-weight:500;font-size:13px}
-.sess .m{font-size:11px;color:var(--muted);font-family:var(--mono)}
-.review{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px}
-.review h2{margin:0;font-size:17px}
-.summary{color:var(--muted);margin:0;max-width:70ch}
-.extract{display:flex;flex-direction:column;gap:6px}
-.ex{display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid var(--line);border-radius:8px}
-.ex input{margin-top:4px;accent-color:var(--accent)}
-.ex label{display:flex;flex-direction:column;gap:3px;cursor:pointer;flex:1}
-.ex .txt{font-weight:500}
-.ex .sub{font-size:12px;color:var(--muted)}
-mark{background:var(--redact);color:inherit;border-radius:3px;padding:0 3px;font-family:var(--mono);font-size:12px}
-.warn{font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center}
-.actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;border-top:1px solid var(--line);padding-top:12px}
-.actions .spacer{flex:1}
-.projsel{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:4px 8px;font:inherit;font-size:12px;color:var(--ink)}
-.empty{padding:40px 16px;text-align:center;color:var(--muted);background:var(--surface);border:1px dashed var(--line);border-radius:10px}
+/* ---------- activity ---------- */
+.tl{display:flex;flex-direction:column}
+.ev{display:grid;grid-template-columns:28px minmax(0,1fr);gap:12px;padding:14px 16px;border-top:1px solid var(--line)}
+.ev:first-child{border-top:0}
+.ev h3{margin:0 0 2px;font-size:13.5px;font-weight:500}
+.ev p{margin:4px 0 0;color:var(--ink-2);font-size:12.5px;max-width:78ch}
+.ev .outs{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 
-/* memory */
-.ask{display:flex;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:6px 6px 6px 14px;align-items:center}
-.ask input{flex:1;border:0;background:none;font:inherit;font-size:15px;color:var(--ink);min-width:0;padding:6px 0}
+/* ---------- inbox ---------- */
+.ib{display:grid;grid-template-columns:280px minmax(0,1fr);gap:16px;align-items:start}
+.ss{display:flex;flex-direction:column;overflow:hidden}
+.sess{border:0;border-top:1px solid var(--line);background:none;text-align:left;padding:11px 14px;display:flex;flex-direction:column;gap:4px}
+.sess:first-child{border-top:0}
+.sess:hover{background:var(--subtle)}
+.sess[aria-current="true"]{background:var(--accent-soft)}
+.sess .t{font-weight:500}
+.rv{padding:18px;display:flex;flex-direction:column;gap:14px}
+.rv h2{margin:0;font-size:17px;letter-spacing:-.015em}
+.rv .sum{margin:0;color:var(--ink-2);max-width:72ch}
+.ex{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:10px}
+.ex:has(input:checked){border-color:color-mix(in srgb,var(--accent) 45%,var(--line));background:color-mix(in srgb,var(--accent-soft) 40%,transparent)}
+.ex input{margin-top:3px;accent-color:var(--accent)}
+.ex label{display:flex;flex-direction:column;gap:4px;cursor:pointer;flex:1}
+.ex .s{font-size:12px;color:var(--muted)}
+.ex .warn{color:var(--amber)}
+.acts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:14px}
+.acts .sp{flex:1}
+.sel{border:1px solid var(--line);background:var(--panel);border-radius:7px;padding:4px 8px;font-size:12.5px}
+.rule{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+
+/* ---------- ask ---------- */
+.ask{display:flex;align-items:center;gap:10px;padding:8px 8px 8px 14px;border-radius:12px}
+.ask:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.ask input{flex:1;border:0;background:none;font-size:15px;min-width:0;padding:6px 0}
 .ask input:focus{outline:none}
-.ask:focus-within{border-color:var(--accent)}
-.sugs{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 16px}
-.answer{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px}
-.answer p{margin:0;max-width:70ch}
-.cite{font-family:var(--mono);font-size:11px;color:var(--accent);background:var(--accent-soft);border-radius:4px;padding:0 5px;margin-left:2px}
-.sources{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:10px}
-.sources div{font-size:12px;color:var(--muted);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.code{position:relative;background:var(--sunk);border-radius:8px;padding:12px;font-family:var(--mono);font-size:12px;overflow-x:auto;white-space:pre;margin:0}
-.copy{position:absolute;top:8px;right:8px}
-.section-t{font-size:13px;font-weight:600;margin:22px 0 8px}
-.hint{font-size:12px;color:var(--muted);margin:0 0 8px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:3px 10px;font-size:12px;color:var(--ink-2)}
+.chip:hover{border-color:var(--line-2)}
+.ans{padding:16px 18px;display:flex;flex-direction:column;gap:12px}
+.ans p{margin:0;max-width:74ch;font-size:14px;line-height:1.65}
+.ci{font-family:var(--mono);font-size:10.5px;color:var(--accent-ink);background:var(--accent-soft);border-radius:4px;padding:0 5px;margin-left:2px;vertical-align:1px}
+.srcs{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:12px}
+.srcs div{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.code{position:relative;margin:0;background:var(--subtle);border-top:1px solid var(--line);border-radius:0 0 12px 12px;padding:14px 16px;font-family:var(--mono);font-size:12px;line-height:1.6;white-space:pre;overflow-x:auto;color:var(--ink-2)}
+.pad{padding:12px 16px;margin:0;color:var(--muted);font-size:12.5px}
 
-/* digest */
-.digest{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:20px;display:flex;flex-direction:column;gap:18px}
-.digest h2{margin:0;font-size:18px}
-.dg{display:grid;grid-template-columns:130px 1fr;gap:12px;border-top:1px solid var(--line);padding-top:14px}
-.dg h3{margin:0;font-size:13px;display:flex;gap:8px;align-items:center}
-.dg ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
-.dg li{max-width:70ch}
-.kpis{display:flex;flex-wrap:wrap;gap:22px}
-.kpi b{display:block;font-family:var(--mono);font-size:22px;font-weight:500;font-variant-numeric:tabular-nums}
-.kpi span{font-size:12px;color:var(--muted)}
+/* ---------- integrations ---------- */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.ig{padding:14px;display:flex;flex-direction:column;gap:10px}
+.ig-h{display:flex;align-items:center;gap:10px}
+.ig-h .pv.only i{width:32px;height:32px;font-size:13px;border-radius:8px}
+.ig-h b{font-weight:600;display:block}
+.ig-h small{color:var(--muted);font-size:11.5px}
+.ig-h .sp{flex:1}
+.sw{width:32px;height:18px;border-radius:999px;border:0;background:var(--line-2);position:relative;padding:0;flex:none;transition:background .15s}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:transform .15s}
+.sw[aria-checked="true"]{background:var(--green)}
+.sw[aria-checked="true"]::after{transform:translateX(14px)}
+.ig .m{display:flex;gap:6px;flex-wrap:wrap}
+.pill{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:0 7px;color:var(--muted)}
+.ig .f{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:8px}
+.ig .f b{font-family:var(--mono);color:var(--ink-2);font-weight:500}
+.sec-t{margin:4px 0 -6px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
+.sec-t span{font-weight:400;color:var(--muted);font-size:12px}
 
-.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 20px);transform:translateX(-50%);background:var(--ink);color:var(--ground);padding:9px 16px;border-radius:8px;font-size:13px;z-index:10}
+/* ---------- digest ---------- */
+.dg{padding:22px 24px;display:flex;flex-direction:column;gap:18px;max-width:820px}
+.dg h2{margin:0;font-size:20px;letter-spacing:-.02em}
+.dg .k{display:flex;gap:28px;flex-wrap:wrap}
+.dg .k div b{display:block;font-size:22px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.dg .k div span{font-size:12px;color:var(--muted)}
+.dgs{display:grid;grid-template-columns:140px minmax(0,1fr);gap:14px;border-top:1px solid var(--line);padding-top:14px}
+.dgs h3{margin:0;font-size:13px;display:flex;align-items:center;gap:8px}
+.dgs ul{margin:0;padding-left:16px;display:flex;flex-direction:column;gap:4px;color:var(--ink-2)}
 
-@media (max-width:1080px){
-  .app{grid-template-columns:180px minmax(0,1fr)}
-  .rail{grid-column:2;position:static}
+/* ---------- palette / toast ---------- */
+.scrim{position:fixed;inset:0;background:rgba(10,10,12,.32);backdrop-filter:blur(2px);z-index:20;display:flex;justify-content:center;align-items:flex-start;padding:12vh 16px 16px}
+.pal{width:100%;max-width:600px;background:var(--panel);border-radius:14px;box-shadow:var(--shadow-lg);overflow:hidden;border:1px solid var(--line)}
+.pal-i{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.pal-i input{flex:1;border:0;background:none;font-size:15px;min-width:0}
+.pal-i input:focus{outline:none}
+.pal-l{max-height:360px;overflow-y:auto;padding:6px}
+.pal-g{font-size:11px;color:var(--faint);padding:8px 10px 4px}
+.po{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;text-align:left;padding:8px 10px;border-radius:8px;font-size:13px}
+.po[aria-selected="true"]{background:var(--hover)}
+.po .sp{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.po small{color:var(--muted);font-size:11.5px}
+.pal-f{display:flex;gap:14px;padding:8px 14px;border-top:1px solid var(--line);font-size:11.5px;color:var(--muted)}
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 20px);transform:translateX(-50%);background:var(--primary);color:var(--on-primary);padding:9px 14px;border-radius:9px;font-size:13px;z-index:30;box-shadow:var(--shadow-lg);display:flex;align-items:center;gap:8px}
+.flash{animation:fl 1.8s ease-out}
+@keyframes fl{from{box-shadow:0 0 0 3px var(--accent)}to{box-shadow:var(--shadow)}}
+
+/* ---------- responsive ---------- */
+@media (max-width:1100px){
+  .ov{grid-template-columns:minmax(0,1fr)}
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
-@media (max-width:720px){
-  .app{grid-template-columns:minmax(0,1fr)}
-  .side{position:static;gap:12px}
-  .nav{flex-direction:row;overflow-x:auto;gap:4px}
-  .nav button{white-space:nowrap;gap:6px}
-  .side .grp{display:none}
-  .rail{grid-column:1}
-  .inbox{grid-template-columns:minmax(0,1fr)}
-  .sessions{flex-direction:row;overflow-x:auto}
-  .sess{min-width:200px}
-  .dg{grid-template-columns:1fr}
+@media (max-width:860px){
+  .shell{grid-template-columns:minmax(0,1fr)}
+  .side{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line);padding:10px 16px;gap:10px}
+  .side .navg.proj-g,.side-foot{display:none}
+  .navg.main-g{flex-direction:row;overflow-x:auto;gap:2px}
+  .navg.main-g h6{display:none}
+  .nv{white-space:nowrap;width:auto}
+  .nv .sp{display:none}
+  .top{padding:10px 16px;position:static}
+  .content{padding:16px}
+  .ib,.two{grid-template-columns:minmax(0,1fr)}
+  .dgs{grid-template-columns:1fr}
+  .at-b .vs{grid-template-columns:1fr}
+  .it{grid-template-columns:minmax(0,1fr)}
+  .it .right{flex-direction:row;align-items:center;justify-content:flex-start}
+  .pr{grid-template-columns:minmax(0,1fr) auto}
+  .pr .bars{grid-column:1/-1;order:3}
 }
-@media (prefers-reduced-motion:reduce){ .new{animation:none} }
+@media (max-width:480px){ .stats{grid-template-columns:1fr} .seg-l>span{display:none} }
+@media (prefers-reduced-motion:reduce){ *{transition:none!important;animation:none!important} }
 </style>
 
-<div class="app">
+<div class="shell">
   <aside class="side">
-    <div>
-      <div class="brand">
-        <span class="brand-mark" aria-hidden="true">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 5.5h7.5M8 3l2.5 2.5L8 8" stroke="var(--on-accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M13 10.5H5.5M8 8l-2.5 2.5L8 13" stroke="var(--on-accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </span>
-        AISync
+    <div class="ws">
+      <span class="logo"><svg viewBox="0 0 16 16" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5.5h8M8.5 3 11 5.5 8.5 8"/><path d="M13 10.5H5M7.5 8 5 10.5 7.5 13"/></svg></span>
+      <div><b>AISync</b><small>星火科技 · 6 位成员</small></div>
+    </div>
+    <button class="search" id="openPal"><svg class="i" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg><span>搜索或跳转…</span><kbd>⌘K</kbd></button>
+    <nav class="navg main-g" id="nav" aria-label="主导航"></nav>
+    <div class="navg proj-g" id="projNav"></div>
+    <div class="side-foot">
+      <div class="live"><span class="pulse"></span>实时同步中 · 已接入 <b id="connN" style="color:var(--ink);font-weight:500;margin-left:2px"></b>&nbsp;个 AI</div>
+      <div class="provrow" id="provRow"></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="top">
+      <div class="crumb" id="crumb"></div>
+      <span class="sp"></span>
+      <div class="seg-l"><span>细节</span>
+        <div class="seg" role="group" aria-label="细节程度" id="detailSeg">
+          <button data-detail="lite">精简</button><button data-detail="std">标准</button><button data-detail="full">完整</button>
+        </div>
       </div>
-      <div class="ws">WORKSPACE · 星火科技 · 5 人</div>
-    </div>
-    <nav class="nav" aria-label="主导航">
-      <button data-view="feed" aria-current="page">团队动态</button>
-      <button data-view="inbox">收件箱 <span class="count" id="inboxCount">3</span></button>
-      <button data-view="memory">团队记忆</button>
-      <button data-view="digest">今日简报</button>
-    </nav>
-    <div class="grp">
-      <h4>项目</h4>
-      <div class="proj" id="projList"></div>
-    </div>
-    <div class="grp">
-      <h4>成员 · 今日活跃</h4>
-      <div class="members" id="memberList"></div>
-    </div>
-  </aside>
+      <button class="btn pri" id="newBtn"><svg class="i" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></svg>导入对话</button>
+    </header>
+    <div class="content" id="view"></div>
+  </div>
+</div>
 
-  <main id="main"></main>
-
-  <aside class="rail" id="rail">
-    <section class="panel">
-      <h2>需要你关注 <span class="type t-conflict" id="alertCount">3</span></h2>
-      <div id="alerts"></div>
-    </section>
-    <section class="panel">
-      <h2>本周 AI 工作分布</h2>
-      <div class="bar" id="srcBar" aria-hidden="true"></div>
-      <div id="srcStats"></div>
-      <p class="hint" style="margin:8px 0 0">只统计会话数量，不含内容。</p>
-    </section>
-  </aside>
+<div class="scrim" id="pal" hidden>
+  <div class="pal" role="dialog" aria-label="命令面板">
+    <div class="pal-i"><svg class="i" viewBox="0 0 16 16" style="color:var(--muted)"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg><input id="palIn" placeholder="搜索共识、任务、成员，或输入命令…" autocomplete="off"><kbd>esc</kbd></div>
+    <div class="pal-l" id="palList"></div>
+    <div class="pal-f"><span>↑↓ 选择</span><span>↵ 打开</span><span>esc 关闭</span></div>
+  </div>
 </div>
 <div class="toast" id="toast" hidden role="status"></div>
 
 <script>
+/* ============ data ============ */
+const PROV = {
+  chatgpt:{n:"ChatGPT",c:"#10A37F",a:"GP",how:"浏览器插件"},
+  claude:{n:"Claude",c:"#D97757",a:"Cl",how:"浏览器插件"},
+  deepseek:{n:"DeepSeek",c:"#4D6BFE",a:"DS",how:"浏览器插件"},
+  gemini:{n:"Gemini",c:"#1A73E8",a:"Ge",how:"浏览器插件"},
+  grok:{n:"Grok",c:"#27272A",a:"Gk",how:"浏览器插件"},
+  perplexity:{n:"Perplexity",c:"#20808D",a:"Px",how:"浏览器插件"},
+  kimi:{n:"Kimi",c:"#3F3F46",a:"Ki",how:"浏览器插件"},
+  doubao:{n:"豆包",c:"#3C5CFF",a:"豆",how:"浏览器插件"},
+  qwen:{n:"通义千问",c:"#615CED",a:"通",how:"浏览器插件"},
+  claudecode:{n:"Claude Code",c:"#B8603F",a:"CC",how:"Hook + MCP"},
+  cursor:{n:"Cursor",c:"#18181B",a:"Cu",how:"MCP"},
+  copilot:{n:"GitHub Copilot",c:"#6E40C9",a:"Co",how:"导出导入"}
+};
+const conn = {chatgpt:true,claude:true,deepseek:true,gemini:true,grok:true,perplexity:false,kimi:false,doubao:false,qwen:false,claudecode:true,cursor:true,copilot:false};
+const sessCount = {chatgpt:38,claude:29,deepseek:24,gemini:12,grok:7,perplexity:0,kimi:0,doubao:0,qwen:0,claudecode:44,cursor:26,copilot:0};
+const OUT = [
+  {k:"slack",n:"Slack",c:"#4A154B",a:"Sl",d:"每日简报、冲突提醒推送到频道",on:true},
+  {k:"feishu",n:"飞书",c:"#3370FF",a:"飞",d:"简报与任务同步到飞书群和多维表格",on:false},
+  {k:"linear",n:"Linear",c:"#5E6AD2",a:"Li",d:"AI 对话中产生的任务双向同步",on:true},
+  {k:"notion",n:"Notion",c:"#27272A",a:"No",d:"决策日志自动归档为 Notion 数据库",on:false},
+  {k:"jira",n:"Jira",c:"#0C66E4",a:"Ji",d:"任务同步到 Jira 看板",on:false},
+  {k:"wecom",n:"企业微信",c:"#07C160",a:"企",d:"简报推送到企业微信群",on:false}
+];
 const M = {
-  me:   {name:"陈晨", role:"CEO", color:"#1E6B58"},
-  alice:{name:"Alice", role:"后端", color:"#2E5CC9"},
-  bob:  {name:"Bob", role:"前端", color:"#A86C12"},
-  lin:  {name:"小林", role:"增长", color:"#8E3A86"},
-  maya: {name:"Maya", role:"设计", color:"#C03D2B"}
+  me:{n:"陈晨",r:"CEO",c:"#18181B"}, alice:{n:"Alice",r:"后端",c:"#3E63DD"}, bob:{n:"Bob",r:"前端",c:"#D97706"},
+  lin:{n:"小林",r:"增长",c:"#8E4EC6"}, maya:{n:"Maya",r:"设计",c:"#E5484D"}, wang:{n:"王磊",r:"算法",c:"#12A594"}
 };
 const P = {
-  pay:  {name:"支付上线", color:"#2E5CC9"},
-  price:{name:"定价策略", color:"#A86C12"},
-  rec:  {name:"推荐算法", color:"#2B7F4E"},
-  site: {name:"官网改版", color:"#8E3A86"}
+  pay:{n:"支付上线",c:"#3E63DD"}, price:{n:"定价策略",c:"#D97706"}, rec:{n:"推荐算法",c:"#12A594"}, site:{n:"官网改版",c:"#E5484D"}
 };
-const TYPE = {decision:"决策", task:"任务", insight:"洞察", question:"待定问题"};
+const DS = {confirmed:"已确认",discussing:"讨论中",conflict:"有冲突",superseded:"已推翻"};
+const TS = {todo:"待开始",doing:"进行中",blocked:"阻塞",done:"已完成"};
+const KIND = {decision:"决策",task:"任务",insight:"洞察",question:"待定问题"};
 
-let cards = [
-  {id:1,type:"decision",who:"alice",src:"Claude Code",proj:"pay",time:"10:42",
-   title:"支付走 Stripe Checkout，不自建支付表单",
-   body:"PCI 合规成本太高；Checkout 支持支付宝和微信支付，两天可上线。后续需要订阅管理时再接 Billing Portal。",
-   quote:["Alice → Claude","对比了 Elements 和 Checkout，考虑到团队只有 1 个后端，Checkout 维护成本最低……"]},
-  {id:2,type:"task",who:"bob",src:"Cursor",proj:"pay",time:"10:15",
-   title:"Bob：周五前完成结算页 + 成功/失败回跳页面",
-   body:"依赖 Alice 的 /api/checkout-session 接口；已在 Cursor 里根据接口草稿生成了页面骨架。",
-   quote:["Bob → Cursor","根据 Alice 的接口定义生成 CheckoutButton 组件和 /success 页面……"]},
-  {id:3,type:"insight",who:"lin",src:"ChatGPT",proj:"price",time:"09:58",
-   title:"3 家主要竞品全部按席位收费，均价 $14/人/月",
-   body:"其中 2 家提供按用量计费的附加包。免费版普遍限制 3 人以内。",
-   quote:["小林 → ChatGPT","整理这 5 家竞品的定价页，做成表格，标注是否有免费版……"]},
-  {id:4,type:"question",who:"maya",src:"Claude",proj:"site",time:"09:30",
-   title:"官网首屏讲「团队协同」还是「个人效率」？",
-   body:"AI 给出了两个方向的文案和线框，需要 @陈晨 定方向，周三设计评审前。",
-   quote:["Maya → Claude","我们的目标用户是创业团队，首屏应该强调……"]},
-  {id:5,type:"decision",who:"alice",src:"Claude",proj:"rec",time:"昨天",
-   title:"MVP 向量检索用 Postgres + pgvector，不引入独立向量库",
-   body:"数据量 < 100 万条前性能足够；少一个服务少一份运维。",
-   quote:["Alice → Claude","Pinecone vs pgvector，在我们 10 万量级的数据下……"]}
+let decisions = [
+  {id:"D-24",t:"支付走 Stripe Checkout，不自建支付表单",p:"pay",s:"confirmed",o:"alice",src:"claudecode",time:"今天 10:42",acks:["alice","bob","me"],
+   why:"PCI 合规成本低；原生支持支付宝与微信支付；团队只有 1 名后端，托管方案维护成本最低。",
+   alt:["Stripe Elements 自建表单 —— 体验可控，但需要 PCI SAQ A-EP","Paddle —— 代缴销售税，但费率高约 1.5%"],
+   q:"对比了 Elements 和 Checkout，考虑到团队只有 1 个后端，Checkout 的维护成本最低，而且两天内可以上线……"},
+  {id:"D-23",t:"定价：按席位 $12/人/月 + AI 用量附加包",p:"price",s:"conflict",o:"me",src:"chatgpt",time:"今天 11:20",acks:["me"],
+   why:"与竞品按席位收费的心智对齐；用量包覆盖重度用户，避免亏损。",
+   conflict:{who:"lin",src:"deepseek",t:"竞品均价 $14/人/月，建议定价不低于 $15",time:"今天 09:58"},
+   alt:["纯按用量计费 —— 对小团队友好，但收入难预测","$15/人/月 —— 小林的建议"],
+   q:"如果按 $12 定价，比竞品便宜 15%，在早期能帮助转化……"},
+  {id:"D-22",t:"官网首屏主打「团队协同」而非「个人效率」",p:"site",s:"discussing",o:"maya",src:"gemini",time:"今天 09:30",acks:["maya","lin"],need:"me",
+   why:"目标客户是 5–30 人团队，决策者买的是协同价值；个人效率的叙事竞品太多。",
+   alt:["主打个人效率 —— 更易传播，但付费方不明确"],
+   q:"两个方向的首屏文案和线框我都做了，从目标用户看，团队协同更有差异化……"},
+  {id:"D-21",t:"所有 webhook 按 event.id 做幂等去重，存 Redis 72 小时",p:"pay",s:"confirmed",o:"me",src:"claudecode",time:"昨天",acks:["me","alice"],
+   why:"Stripe 失败重试会持续 3 天，重复回调曾导致订单重复创建。",alt:["数据库唯一索引 —— 更可靠，但需要改表结构"],
+   q:"定位到重复订单来自 webhook 重试，给处理函数加上基于 event.id 的幂等键……"},
+  {id:"D-20",t:"推荐冷启动先用 7 日热门榜兜底",p:"rec",s:"discussing",o:"wang",src:"deepseek",time:"昨天",acks:["wang"],
+   why:"新用户没有行为数据，热门榜实现成本最低，可以快速上线再迭代。",alt:["问卷选兴趣标签 —— 增加注册流程摩擦"],
+   q:"冷启动阶段比较了三种方案，考虑到上线时间，热门榜最稳妥……"},
+  {id:"D-19",t:"MVP 向量检索用 Postgres + pgvector，不引入独立向量库",p:"rec",s:"confirmed",o:"alice",src:"claude",time:"周一",acks:["alice","wang","me"],
+   why:"数据量在 100 万条以内时性能足够；少一个服务就少一份运维。",alt:["Pinecone —— 托管省心，但多一份账单和数据同步"],
+   q:"Pinecone vs pgvector，在我们 10 万量级的数据下，pgvector 的 p95 延迟在 20ms 以内……"},
+  {id:"D-15",t:"使用 Pinecone 作为向量数据库",p:"rec",s:"superseded",o:"alice",src:"grok",time:"上周",acks:["alice"],by:"D-19",
+   why:"已被 D-19 取代：改为 Postgres + pgvector。",alt:[],q:"帮我比较几个托管向量数据库……"}
 ];
 
-const inboxData = [
-  {id:"s1",title:"定价：按用量还是按席位？",src:"ChatGPT",time:"11:20 · 42 条消息",proj:"price",
-   summary:"和 ChatGPT 讨论了两种定价模式的利弊，参考了小林整理的竞品数据，倾向于「席位 + 用量附加包」的混合方案。",
-   items:[
-    {type:"decision",title:"采用「按席位 $12/人/月 + AI 用量附加包」",sub:"理由：与竞品对齐降低认知成本，用量包覆盖重度用户",on:true},
-    {type:"question",title:"免费版是 3 人还是 5 人上限？",sub:"需要看激活数据后再定",on:true},
-    {type:"task",title:"陈晨：周四前把定价页文案给 Maya",sub:"",on:true},
-    {type:"insight",title:"测试用 Stripe 密钥 <mark>sk_test_••••••••3f9a</mark> 已配置",sub:"检测到密钥，已自动打码。建议不要发布此条",on:false,sensitive:true}
-   ]},
-  {id:"s2",title:"给投资人的月度更新邮件",src:"Claude",time:"08:50 · 12 条消息",proj:null,
-   summary:"起草了 9 月投资人更新邮件，包含收入、用户数和下月目标。",
-   items:[
-    {type:"insight",title:"9 月 MRR <mark>$••,•••</mark>，环比 +18%",sub:"检测到财务数据，默认不发布",on:false,sensitive:true},
-    {type:"task",title:"陈晨：周一发送投资人更新",sub:"",on:false}
-   ]},
-  {id:"s3",title:"修复 webhook 重复回调",src:"Claude Code",time:"昨天 · 仓库 aisync",proj:"pay",
-   summary:"定位到 Stripe webhook 重试导致订单重复创建，加了幂等键，已提交 PR。",
-   items:[
-    {type:"decision",title:"所有 webhook 处理按 event.id 做幂等去重",sub:"存 Redis，保留 72 小时",on:true},
-    {type:"insight",title:"Stripe 会在 3 天内指数退避重试失败的 webhook",sub:"",on:true}
-   ]}
+let tasks = [
+  {id:"T-41",t:"结算页 + 成功/失败回跳页面",p:"pay",o:"bob",s:"doing",src:"cursor",due:"周五",
+   sub:[["CheckoutButton 组件",1],["/success 页面",1],["/cancel 页面",1],["移动端适配",0],["联调 checkout-session 接口",0]],
+   upd:"完成了 /cancel 页面，开始做移动端适配",ago:"12 分钟前"},
+  {id:"T-40",t:"Stripe webhook 签名校验与幂等",p:"pay",o:"alice",s:"done",src:"claudecode",due:"周三",
+   sub:[["签名校验",1],["event.id 幂等",1],["重试测试",1],["告警",1]],upd:"PR #128 已合并",ago:"2 小时前"},
+  {id:"T-39",t:"支付成功页埋点方案",p:"pay",o:"bob",s:"doing",src:"cursor",due:"周五",
+   sub:[["事件定义",1],["前端上报",0],["看板",0]],upd:"正在定义事件名",ago:"30 分钟前",dup:"Maya 昨天已在 Claude 中完成同一套事件定义"},
+  {id:"T-38",t:"定价页文案交给 Maya",p:"price",o:"me",s:"todo",src:"chatgpt",due:"周四",
+   sub:[["三档套餐描述",0],["FAQ",0],["对比表",0]],upd:"由定价会话自动创建",ago:"1 小时前"},
+  {id:"T-37",t:"竞品定价调研",p:"price",o:"lin",s:"done",src:"deepseek",due:"周二",
+   sub:[["5 家竞品定价表",1],["免费版限制对比",1],["结论摘要",1]],upd:"已发布洞察：竞品均价 $14",ago:"今天 09:58"},
+  {id:"T-36",t:"召回模型离线评估",p:"rec",o:"wang",s:"doing",src:"deepseek",due:"下周一",
+   sub:[["构建评估集",1],["Recall@50",1],["NDCG",0],["消融实验",0],["报告",0],["评审",0]],upd:"Recall@50 = 0.61，比基线高 9%",ago:"45 分钟前"},
+  {id:"T-35",t:"官网首屏两版视觉稿",p:"site",o:"maya",s:"blocked",src:"gemini",due:"周三",
+   sub:[["线框",1],["团队协同版",1],["个人效率版",0]],upd:"等待首屏方向拍板",ago:"今天 09:30",block:"依赖 D-22：等待陈晨决定首屏方向"},
+  {id:"T-34",t:"冷启动热门榜 SQL",p:"rec",o:"wang",s:"todo",src:"claude",due:"周四",
+   sub:[["7 日热门榜",0],["缓存",0]],upd:"由 D-20 讨论自动创建",ago:"昨天"}
 ];
 
-const alerts = [
-  {kind:"conflict",text:"<b>定价冲突</b>：你收件箱里的新决策与已发布结论可能矛盾",
-   a:"你（草稿）：按席位 $12/人/月",b:"小林（洞察）：竞品均价 $14，建议 $15 以上",actions:["发起讨论","查看两边来源"]},
-  {kind:"dup",text:"<b>重复工作</b>：Bob 正在 Cursor 里研究「支付成功页埋点」，Maya 昨天已在 Claude 里做过同一件事",actions:["通知 Bob"]},
-  {kind:"q",text:"<b>@你的问题</b>：Maya 在等你决定官网首屏方向（周三前）",actions:["去回答"]}
+const activity = [
+  {who:"bob",src:"cursor",time:"12 分钟前",t:"开发结算页取消流程",sum:"实现了 /cancel 页面和返回购物车逻辑，下一步做移动端适配。",outs:[["task","T-41 进度 3/5"]],
+   det:["修改了 3 个文件：CheckoutButton.tsx、cancel.tsx、routes.ts","引用了 D-24（Stripe Checkout）作为上下文"]},
+  {who:"wang",src:"deepseek",time:"45 分钟前",t:"召回模型离线评估",sum:"在 2 万条评估集上跑完 Recall@50，双塔模型比基线高 9%。",outs:[["insight","Recall@50 = 0.61"],["task","T-36 进度 2/6"]],
+   det:["评估集来自 9 月第一周的点击日志","待确认：是否需要剔除内部员工流量"]},
+  {who:"me",src:"chatgpt",time:"1 小时前",t:"定价：按用量还是按席位？",sum:"讨论了两种模式的利弊，倾向于席位 + 用量包混合方案。与小林的调研结论存在价格分歧。",outs:[["decision","D-23"],["task","T-38"],["question","免费版上限"]],
+   det:["42 条消息，引用了小林的竞品定价表","1 条包含密钥的消息已自动打码且未发布"]},
+  {who:"lin",src:"deepseek",time:"今天 09:58",t:"竞品定价调研",sum:"整理了 5 家竞品的定价页，3 家主要竞品全部按席位收费。",outs:[["insight","竞品均价 $14/人/月"],["task","T-37 已完成"]],
+   det:["其中 2 家提供按用量计费的附加包","免费版普遍限制在 3 人以内"]},
+  {who:"maya",src:"gemini",time:"今天 09:30",t:"官网首屏方向探索",sum:"产出了两个方向的文案与线框，需要 CEO 拍板。",outs:[["decision","D-22 讨论中"],["question","@陈晨"]],
+   det:["团队协同版：「让每个 AI 都知道团队在想什么」","个人效率版：「你的所有 AI，一个记忆」"]},
+  {who:"alice",src:"claudecode",time:"今天 10:42",t:"支付方案选型与 webhook 实现",sum:"确定 Stripe Checkout 方案，完成 webhook 签名校验与幂等。",outs:[["decision","D-24"],["task","T-40 已完成"]],
+   det:["PR #128 已合并，覆盖 14 个单元测试"]},
+  {who:"wang",src:"grok",time:"昨天",t:"推荐系统舆情扫描",sum:"整理了社交平台上用户对竞品推荐质量的反馈。",outs:[["insight","用户最不满「推荐重复」"]],
+   det:["样本 320 条，负面主题前三：重复、过时、无关"]}
 ];
 
-const srcs = [["Claude Code",31,"#2E5CC9"],["ChatGPT",24,"#2B7F4E"],["Cursor",19,"#A86C12"],["Claude",17,"#8E3A86"],["Gemini",6,"#8A948E"]];
+let inbox = [
+  {id:"s1",t:"定价：按用量还是按席位？",src:"chatgpt",time:"11:20 · 42 条消息",p:"price",
+   sum:"讨论了两种定价模式的利弊，参考了小林整理的竞品数据，倾向于「席位 + 用量附加包」的混合方案。",
+   items:[
+    {k:"decision",t:"采用「按席位 $12/人/月 + AI 用量附加包」",s:"理由：与竞品对齐，降低认知成本；用量包覆盖重度用户",on:true},
+    {k:"question",t:"免费版是 3 人还是 5 人上限？",s:"需要看激活数据后再定",on:true},
+    {k:"task",t:"陈晨：周四前把定价页文案交给 Maya",s:"",on:true},
+    {k:"insight",t:"测试用 Stripe 密钥 <mark>sk_test_••••••3f9a</mark> 已配置",s:"检测到密钥，已自动打码，建议不要发布",on:false,warn:true}]},
+  {id:"s2",t:"给投资人的 9 月更新邮件",src:"claude",time:"08:50 · 12 条消息",p:"",
+   sum:"起草了 9 月投资人更新邮件，包含收入、用户数和下月目标。",
+   items:[
+    {k:"insight",t:"9 月 MRR <mark>$••,•••</mark>，环比 +18%",s:"检测到财务数据，默认不发布",on:false,warn:true},
+    {k:"task",t:"陈晨：周一发送投资人更新",s:"",on:false}]},
+  {id:"s3",t:"修复 webhook 重复回调",src:"claudecode",time:"昨天 · repo: aisync",p:"pay",
+   sum:"定位到 Stripe webhook 重试导致订单重复创建，加了幂等键并提交 PR。",
+   items:[
+    {k:"decision",t:"所有 webhook 按 event.id 做幂等去重",s:"存 Redis，保留 72 小时",on:true},
+    {k:"insight",t:"Stripe 会在 3 天内指数退避重试失败的 webhook",s:"",on:true}]},
+  {id:"s4",t:"东南亚市场进入策略",src:"grok",time:"昨天 · 18 条消息",p:"",
+   sum:"调研了东南亚 SaaS 付费习惯与本地支付方式。",
+   items:[
+    {k:"insight",t:"印尼、越南中小企业更习惯按年付费，且依赖本地钱包",s:"",on:true},
+    {k:"question",t:"是否在 Q1 支持 GrabPay / GoPay？",s:"",on:true}]}
+];
 
-let view="feed", typeFilter="all", projFilter=null, selSession="s1";
-const $=s=>document.querySelector(s);
+/* ============ state ============ */
+const store = {get(k,d){try{return localStorage.getItem(k)??d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+let view = "home", detail = store.get("aisync.detail","std"), projF = null, decF = "all";
+let selSess = "s1";
+const open = new Set();
+let alerts = ["conflict","ack","dup"];
 
-function av(k){const m=M[k];return `<span class="av" style="background:${m.color}" title="${m.name} · ${m.role}">${m.name.slice(0,1)}</span>`}
-function toast(t){const el=$("#toast");el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,2400)}
+/* ============ helpers ============ */
+const $ = s => document.querySelector(s);
+const I = {
+  home:'<path d="M2.5 7 8 2.5 13.5 7v6.5h-3.5V10h-4v3.5H2.5z"/>',
+  cons:'<circle cx="8" cy="8" r="5.75"/><path d="m5.5 8 1.8 1.8L10.8 6.3"/>',
+  task:'<rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M6 2.5v11M10 2.5v7"/>',
+  act:'<path d="M1.5 8.5h2.8l1.7-5 3.5 9 1.8-4h3.2"/>',
+  inbox:'<path d="M2.5 9.5 4 3.5h8l1.5 6v3h-11z"/><path d="M2.5 9.5h3l.8 1.5h3.4l.8-1.5h3"/>',
+  ask:'<path d="M8 2.5 9.3 6.7 13.5 8 9.3 9.3 8 13.5 6.7 9.3 2.5 8 6.7 6.7z"/>',
+  plug:'<path d="M6 2.5v3M10 2.5v3M4.5 5.5h7v2.5a3.5 3.5 0 0 1-7 0z"/><path d="M8 11.5v2"/>',
+  news:'<rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M5 6h6M5 8.5h6M5 11h3.5"/>',
+  alert:'<path d="M8 2.5 14 13H2z"/><path d="M8 6.5v3M8 11.2v.1"/>',
+  copy:'<rect x="5" y="5" width="8.5" height="8.5" rx="1.5"/><path d="M3 10.5V3.5A1 1 0 0 1 4 2.5h6.5"/>',
+  chev:'<path d="m6 4 4 4-4 4"/>',
+  check:'<path d="m3.5 8.5 3 3 6-7"/>',
+  users:'<circle cx="6" cy="6" r="2.5"/><path d="M1.5 13c.5-2.3 2.3-3.5 4.5-3.5s4 1.2 4.5 3.5"/><path d="M10.5 3.8a2.5 2.5 0 0 1 0 4.4M12 9.8c1.3.5 2.2 1.6 2.5 3.2"/>',
+  arrow:'<path d="M3 8h10M9 4l4 4-4 4"/>',
+  clock:'<circle cx="8" cy="8" r="5.75"/><path d="M8 5v3l2 1.5"/>'
+};
+const ic = (k,st="") => `<svg class="i" viewBox="0 0 16 16" ${st?`style="${st}"`:""}>${I[k]}</svg>`;
+const pv = (k,only) => {const p=PROV[k];return `<span class="pv${only?" only":""}" title="${p.n}"><i style="background:${p.c}">${p.a}</i>${only?"":p.n}</span>`};
+const av = (k,lg) => {const m=M[k];return `<span class="av${lg?" lg":""}" style="background:${m.c}" title="${m.n} · ${m.r}">${m.n.slice(0,1)}</span>`};
+const stack = ks => `<span class="stack">${ks.map(k=>av(k)).join("")}</span>`;
+const proj = k => k?`<span class="proj"><span class="pdot" style="background:${P[k].c}"></span>${P[k].n}</span>`:"";
+const showWhy = id => detail!=="lite" || open.has(id);
+const showFull = id => detail==="full" || open.has(id);
+const moreBtn = (id,label="细节") => `<button class="more" data-open="${id}" aria-expanded="${showFull(id)}">${ic("chev")}${showFull(id)?"收起":label}</button>`;
+function toast(t){const e=$("#toast");e.innerHTML=ic("check")+t;e.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>e.hidden=true,2400)}
+function projPct(k){const ts=tasks.filter(t=>t.p===k);let d=0,a=0;ts.forEach(t=>{a+=t.sub.length;d+=t.sub.filter(s=>s[1]).length});return a?Math.round(d/a*100):0}
+function spark(vals,color){const w=120,h=28,mx=Math.max(...vals),mn=Math.min(...vals);const pts=vals.map((v,i)=>[i/(vals.length-1)*w,h-3-(v-mn)/((mx-mn)||1)*(h-8)]);
+  const d=pts.map((p,i)=>(i?"L":"M")+p[0].toFixed(1)+" "+p[1].toFixed(1)).join(" ");const last=pts[pts.length-1];
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><path d="${d} L${w} ${h} L0 ${h}Z" fill="${color}" opacity=".1"/><path d="${d}" fill="none" stroke="${color}" stroke-width="1.5" vector-effect="non-scaling-stroke"/><circle cx="${last[0]}" cy="${last[1]}" r="2.2" fill="${color}"/></svg>`}
 
-function renderSide(){
-  $("#projList").innerHTML = `<button aria-pressed="${!projFilter}" data-proj=""><span class="dot"></span>全部项目</button>` +
-    Object.entries(P).map(([k,p])=>`<button aria-pressed="${projFilter===k}" data-proj="${k}"><span class="dot" style="background:${p.color}"></span>${p.name}</button>`).join("");
-  $("#memberList").innerHTML = Object.keys(M).map(av).join("");
-  const n = inboxData.length; const c=$("#inboxCount"); c.textContent=n; c.dataset.zero = n?0:1;
-  document.querySelectorAll(".nav button").forEach(b=>b.setAttribute("aria-current", b.dataset.view===view?"page":"false"));
+/* ============ chrome ============ */
+const NAV = [
+  ["home","总览","home"],["cons","共识","cons"],["tasks","任务进度","task"],["act","动态","act"],
+  ["inbox","收件箱","inbox"],["ask","问团队记忆","ask"],["digest","每日简报","news"],["int","AI 接入","plug"]
+];
+const TITLE = Object.fromEntries(NAV.map(n=>[n[0],n[1]]));
+function renderChrome(){
+  const badge = {cons:decisions.filter(d=>d.s==="conflict"||d.need==="me").length, tasks:tasks.filter(t=>t.s!=="done").length, inbox:inbox.length};
+  $("#nav").innerHTML = `<h6>工作区</h6>` + NAV.map(([k,l,i])=>`<button class="nv" data-view="${k}" aria-current="${view===k?"page":"false"}">${ic(i)}<span>${l}</span><span class="sp"></span>${badge[k]?`<span class="n ${k==="inbox"||k==="cons"?"hot":""}">${badge[k]}</span>`:""}</button>`).join("");
+  $("#projNav").innerHTML = `<h6>项目</h6>` + Object.entries(P).map(([k,p])=>`<button class="nv" data-proj="${k}" aria-current="${projF===k&&(view==="cons"||view==="tasks")?"page":"false"}"><span class="pdot" style="background:${p.c}"></span><span>${p.n}</span><span class="sp"></span><span class="n">${projPct(k)}%</span></button>`).join("");
+  const on = Object.keys(PROV).filter(k=>conn[k]);
+  $("#connN").textContent = on.length;
+  $("#provRow").innerHTML = on.map(k=>pv(k,true)).join("");
+  $("#crumb").innerHTML = `星火科技 ${ic("chev","width:12px;height:12px")} <b>${TITLE[view]}</b>${projF&&(view==="cons"||view==="tasks")?` ${ic("chev","width:12px;height:12px")} ${proj(projF)} <button class="btn ghost sm" data-clearproj>清除</button>`:""}`;
+  document.querySelectorAll("[data-detail]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.detail===detail));
 }
 
-function renderRail(){
-  $("#alerts").innerHTML = alerts.map((a,i)=>`<div class="alert">
-    <p>${a.text}</p>
-    ${a.a?`<div class="vs"><div>${a.a}</div><div>${a.b}</div></div>`:""}
-    <div class="row">${a.actions.map((x,j)=>`<button class="btn ${j===0?"primary":""}" data-alert="${i}" data-act="${x}">${x}</button>`).join("")}</div>
-  </div>`).join("") || `<p class="hint" style="margin:0">都处理完了。</p>`;
-  $("#alertCount").textContent = alerts.length;
-  const tot = srcs.reduce((s,x)=>s+x[1],0);
-  $("#srcBar").innerHTML = srcs.map(s=>`<span style="width:${s[1]/tot*100}%;background:${s[2]}"></span>`).join("");
-  $("#srcStats").innerHTML = srcs.map(s=>`<div class="stat"><span><span class="dot" style="display:inline-block;background:${s[2]};margin-right:6px"></span>${s[0]}</span><b>${s[1]} 个会话</b></div>`).join("");
+/* ============ views ============ */
+function vHome(){
+  const conf = decisions.filter(d=>d.s==="confirmed").length, doing=tasks.filter(t=>t.s==="doing").length, blocked=tasks.filter(t=>t.s==="blocked").length;
+  const pending = decisions.filter(d=>d.s==="discussing"||d.s==="conflict").length;
+  const A = {
+    conflict:()=>{const d=decisions.find(x=>x.id==="D-23");if(d.s!=="conflict")return"";return `<div class="at"><span class="at-ic" style="background:var(--red-bg);color:var(--red)">${ic("alert")}</span><div class="at-b">
+      <p><b>定价出现冲突</b> · 两个 AI 会话得出了不同结论</p>
+      <div class="vs"><div><span class="meta">${av("me")} 陈晨 · ${pv("chatgpt")}</span>按席位 $12/人/月</div><div><span class="meta">${av("lin")} 小林 · ${pv("deepseek")}</span>竞品均价 $14，建议 ≥ $15</div></div>
+      <div class="row-a"><button class="btn sm pri" data-resolve="D-23">去解决</button><button class="btn sm" data-alertx="conflict" data-msg="已在 Slack #pricing 发起讨论，并 @小林">在 Slack 发起讨论</button></div></div></div>`},
+    ack:()=>{const d=decisions.find(x=>x.id==="D-22");if(d.s!=="discussing")return"";return `<div class="at"><span class="at-ic" style="background:var(--accent-soft);color:var(--accent-ink)">${ic("cons")}</span><div class="at-b">
+      <p><b>Maya 等你拍板</b> · 官网首屏主打「团队协同」 <span class="meta" style="display:inline-flex">· 阻塞 T-35</span></p>
+      <div class="row-a"><button class="btn sm pri" data-ack="D-22">同意，形成共识</button><button class="btn sm" data-view="cons">查看细节</button></div></div></div>`},
+    dup:()=>`<div class="at"><span class="at-ic" style="background:var(--amber-bg);color:var(--amber)">${ic("users")}</span><div class="at-b">
+      <p><b>可能在做重复工作</b> · Bob 正在 ${pv("cursor")} 里做「支付成功页埋点」，Maya 昨天已在 ${pv("claude")} 里完成了同一套事件定义</p>
+      <div class="row-a"><button class="btn sm" data-alertx="dup" data-msg="已把 Maya 的结论发给 Bob">把 Maya 的结论发给 Bob</button></div></div></div>`
+  };
+  const attn = alerts.map(k=>A[k]()).filter(Boolean);
+  const provs = Object.keys(PROV).filter(k=>sessCount[k]).sort((a,b)=>sessCount[b]-sessCount[a]); const mx=Math.max(...provs.map(k=>sessCount[k]));
+  const recent = decisions.filter(d=>d.s!=="superseded").slice(0,4);
+  return `<div class="ph"><div><h1>早上好，陈晨</h1><p>过去 24 小时，团队在 7 个 AI 工具里进行了 47 次对话，形成 3 项新共识，推进了 6 个任务。</p></div>
+    <button class="btn" data-view="digest">${ic("news")}查看今日简报</button></div>
+  <div class="stats">
+    <div class="box st"><span class="l">${ic("cons")}本周新共识</span><span class="v">${conf+3}</span>${spark([2,3,2,5,4,6,7],"var(--green)")}<span class="d"><b>+40%</b> 较上周</span></div>
+    <div class="box st"><span class="l">${ic("task")}进行中任务</span><span class="v">${doing}</span>${spark([3,4,4,5,3,4,doing],"var(--accent)")}<span class="d">${tasks.filter(t=>t.s==="done").length} 个本周已完成</span></div>
+    <div class="box st"><span class="l">${ic("alert")}待决 / 冲突</span><span class="v">${pending}</span>${spark([1,2,1,3,2,3,pending],"var(--amber)")}<span class="d">平均 1.4 天达成共识</span></div>
+    <div class="box st"><span class="l">${ic("clock")}阻塞任务</span><span class="v">${blocked}</span>${spark([0,1,1,0,1,2,blocked],"var(--red)")}<span class="d">${blocked?'<b class="neg">需要处理</b>':"没有阻塞"}</span></div>
+  </div>
+  <div class="ov">
+    <div class="col">
+      <section class="box"><div class="box-h"><h2>需要你处理 <span class="c">${attn.length}</span></h2></div><div class="attn">${attn.join("")||`<div class="empty">都处理完了 ✓</div>`}</div></section>
+      <section class="box"><div class="box-h"><h2>最新共识</h2><button class="link" data-view="cons">全部 ${ic("arrow","width:12px;height:12px")}</button></div>
+        <div class="list">${recent.map(decRow).join("")}</div></section>
+    </div>
+    <div class="col">
+      <section class="box"><div class="box-h"><h2>项目进度</h2><button class="link" data-view="tasks">任务看板 ${ic("arrow","width:12px;height:12px")}</button></div>
+        ${Object.entries(P).map(([k,p])=>{const pc=projPct(k),ts=tasks.filter(t=>t.p===k),bl=ts.some(t=>t.s==="blocked");return `<div class="pr"><button class="nm nv" style="padding:0;box-shadow:none;background:none" data-proj="${k}"><span class="pdot" style="background:${p.c}"></span>${p.n}</button><div class="bars"><div class="prog ${bl?"blocked":pc===100?"done":""}"><span style="width:${pc}%"></span></div><span class="pc">${pc}%</span></div><span class="cnt">${ts.filter(t=>t.s==="done").length}/${ts.length} 任务${bl?` · <span style="color:var(--red)">阻塞</span>`:""}</span></div>`}).join("")}
+      </section>
+      <section class="box"><div class="box-h"><h2>任务动态</h2><span class="c">实时</span></div>
+        <div class="list">${tasks.filter(t=>t.s!=="todo").slice(0,4).map(t=>`<div class="it" style="grid-template-columns:minmax(0,1fr)"><div class="meta">${av(t.o)}<b style="color:var(--ink);font-weight:500">${t.t}</b></div>
+          <div class="meta">${pv(t.src)}<span>${t.upd}</span><span>· ${t.ago}</span></div></div>`).join("")}</div></section>
+      <section class="box"><div class="box-h"><h2>本周 AI 使用分布</h2><span class="c">仅统计次数</span></div>
+        <div class="dist">${provs.map(k=>`<div class="dr">${pv(k)}<div class="b"><span style="width:${sessCount[k]/mx*100}%;background:${PROV[k].c}"></span></div><span class="x">${sessCount[k]}</span></div>`).join("")}</div></section>
+    </div>
+  </div>`;
 }
 
-function cardHTML(c){
-  return `<article class="card ${c.fresh?"new":""}" id="card-${c.id}">
-    ${av(c.who)}
-    <div class="meta"><span class="type t-${c.type}">${TYPE[c.type]}</span><b>${M[c.who].name}</b><span class="src">${c.src}</span>${c.proj?`<span>${P[c.proj].name}</span>`:""}<span>${c.time}</span></div>
-    <h3>${c.title}</h3>
-    ${c.body?`<div class="body">${c.body}</div>`:""}
-    <div class="foot"><button class="link" data-quote="${c.id}">查看来源片段</button><button class="link" data-reuse="${c.id}">引用到我的 AI</button></div>
-    <div class="quote" id="q-${c.id}" hidden><span class="who">${c.quote[0]}</span>“${c.quote[1]}”</div>
+function decRow(d){
+  const ackN = d.acks.length, full=showFull(d.id);
+  return `<article class="it ${d.s}" id="${d.id}">
+    <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+      <h3><span class="mono" style="color:var(--faint);font-size:11.5px;font-weight:400">${d.id}</span>${d.t}</h3>
+      ${showWhy(d.id)?`<p class="why">${d.why}</p>`:""}
+      <div class="meta">${av(d.o)}<span>${M[d.o].n}</span>${pv(d.src)}${proj(d.p)}<span>${d.time}</span></div>
+    </div>
+    <div class="right"><span class="tag s-${d.s}">${DS[d.s]}</span>
+      <span class="acks">${stack(d.acks)}${ackN}/6 已确认</span></div>
+    ${d.s==="conflict"?`<div class="full"><div class="at-b"><div class="vs"><div><span class="meta">${av(d.o)} ${M[d.o].n} · ${pv(d.src)}</span>${d.t.replace("定价：","")}</div><div><span class="meta">${av(d.conflict.who)} ${M[d.conflict.who].n} · ${pv(d.conflict.src)}</span>${d.conflict.t}</div></div>
+      <div class="row-a"><button class="btn sm pri" data-pick="${d.id}" data-side="a">采用 $12 方案</button><button class="btn sm" data-pick="${d.id}" data-side="b">采用 $15 方案</button><button class="btn sm ghost" data-alertx="conflict" data-msg="已在 Slack #pricing 发起讨论">发起讨论</button></div></div></div>`:""}
+    <div class="full foot">
+      ${moreBtn(d.id,"推理与来源")}
+      ${d.s==="discussing"&&!d.acks.includes("me")?`<button class="btn sm pri" data-ack="${d.id}">${ic("check")}同意</button><button class="btn sm" data-object="${d.id}">提出异议</button>`:""}
+      ${d.s==="discussing"&&d.acks.includes("me")?`<span class="meta">你已同意 · 等待其他人</span>`:""}
+      ${d.by?`<span class="meta">被 <button class="link" data-goto="${d.by}">${d.by}</button> 取代</span>`:""}
+      <button class="link" data-cite="${d.id}">${ic("copy","width:12px;height:12px")}引用到我的 AI</button>
+    </div>
+    ${full?`<div class="full detail">
+      ${d.alt.length?`<div><h5>考虑过的备选方案</h5><ul>${d.alt.map(a=>`<li>${a}</li>`).join("")}</ul></div>`:""}
+      <div><h5>原始对话片段</h5><div class="quote"><span class="who">${av(d.o)}${M[d.o].n} → ${pv(d.src)}</span>“${d.q}”</div></div>
+      <div class="meta">确认人：${d.acks.map(k=>M[k].n).join("、")} · 未确认：${Object.keys(M).filter(k=>!d.acks.includes(k)).map(k=>M[k].n).join("、")}</div>
+    </div>`:""}
   </article>`;
 }
 
-function renderFeed(){
-  const list = cards.filter(c=>(typeFilter==="all"||c.type===typeFilter)&&(!projFilter||c.proj===projFilter));
-  $("#main").innerHTML = `<div class="head">
-      <div><h1>${projFilter?P[projFilter].name:"团队动态"}</h1><p>大家今天在各自的 AI 里推进了什么 —— 只显示本人发布的结论，原始对话不公开。</p></div>
-      <div class="filters">${[["all","全部"],...Object.entries(TYPE)].map(([k,v])=>`<button class="chip" aria-pressed="${typeFilter===k}" data-type="${k}">${v}</button>`).join("")}</div>
-    </div>
-    <div class="feed">${list.map(cardHTML).join("") || `<div class="empty">这个筛选下还没有卡片。</div>`}</div>`;
-  cards.forEach(c=>delete c.fresh);
+function vCons(){
+  const base = decisions.filter(d=>!projF||d.p===projF);
+  const tabs = [["all","全部"],["confirmed","已确认"],["discussing","讨论中"],["conflict","有冲突"],["superseded","已推翻"]];
+  const list = base.filter(d=>decF==="all"||d.s===decF);
+  return `<div class="ph"><div><h1>团队共识</h1><p>从每个人的 AI 对话里提炼出的决策，需要相关成员确认后才算达成共识。冲突会被自动检测出来。</p></div>
+    <button class="btn" data-cite-all>${ic("copy")}复制为上下文</button></div>
+  <section class="box">
+    <div class="tabs" role="tablist" style="padding:0 8px">${tabs.map(([k,l])=>`<button role="tab" aria-selected="${decF===k}" data-decf="${k}">${l}<span class="n">${k==="all"?base.length:base.filter(d=>d.s===k).length}</span></button>`).join("")}</div>
+    <div class="list">${list.map(decRow).join("")||`<div class="empty">这个筛选下没有共识。</div>`}</div>
+  </section>`;
 }
 
-function renderInbox(){
-  if(!inboxData.length){
-    $("#main").innerHTML = `<div class="head"><div><h1>收件箱</h1><p>新捕获的会话会先到这里，由你决定是否发布。</p></div></div><div class="empty">全部处理完了。下一次你和 AI 对话后，提炼结果会出现在这里。</div>`;
-    return;
-  }
-  if(!inboxData.find(s=>s.id===selSession)) selSession = inboxData[0].id;
-  const s = inboxData.find(x=>x.id===selSession);
-  $("#main").innerHTML = `<div class="head"><div><h1>收件箱</h1><p>AI 已替你提炼好，勾选要发布的条目即可。未发布的内容只有你自己能看到。</p></div></div>
-  <div class="inbox">
-    <div class="sessions">${inboxData.map(x=>`<button class="sess" data-sess="${x.id}" aria-current="${x.id===selSession}">
-      <span class="t">${x.title}</span><span class="m">${x.src} · ${x.time}</span></button>`).join("")}</div>
-    <section class="review">
-      <div class="meta"><span class="src">${s.src}</span><span>${s.time}</span></div>
-      <h2>${s.title}</h2>
-      <p class="summary">${s.summary}</p>
-      <div class="extract">${s.items.map((it,i)=>`<div class="ex">
-        <input type="checkbox" id="ex-${s.id}-${i}" data-item="${i}" ${it.on?"checked":""}>
-        <label for="ex-${s.id}-${i}"><span><span class="type t-${it.type}">${TYPE[it.type]}</span></span><span class="txt">${it.title}</span>${it.sub?`<span class="sub">${it.sensitive?"⚠ ":""}${it.sub}</span>`:""}</label>
-      </div>`).join("")}</div>
-      <div class="actions">
-        <label class="warn" for="projSel">归入项目</label>
-        <select class="projsel" id="projSel">${Object.entries(P).map(([k,p])=>`<option value="${k}" ${s.proj===k?"selected":""}>${p.name}</option>`).join("")}<option value="" ${!s.proj?"selected":""}>不归入项目</option></select>
-        <span class="spacer"></span>
-        <button class="btn" data-inbox="discard">丢弃</button>
-        <button class="btn" data-inbox="private">仅自己可见</button>
-        <button class="btn primary" data-inbox="publish">发布到团队</button>
+function taskCard(t){
+  const d=t.sub.filter(s=>s[1]).length, n=t.sub.length, pc=Math.round(d/n*100), full=showFull(t.id);
+  return `<article class="tk" draggable="true" data-task="${t.id}" id="${t.id}">
+    <div class="meta"><span class="mono" style="color:var(--faint)">${t.id}</span>${proj(t.p)}<span class="sp" style="flex:1"></span>${av(t.o)}</div>
+    <h4>${t.t}</h4>
+    <div class="pg"><div class="prog ${t.s==="done"?"done":t.s==="blocked"?"blocked":""}"><span style="width:${pc}%"></span></div>${d}/${n}</div>
+    ${t.block?`<div class="bl">${t.block}</div>`:""}
+    ${t.dup?`<div class="dup">可能重复：${t.dup}</div>`:""}
+    ${showWhy(t.id)?`<div class="upd">${pv(t.src,true)}<span>${t.upd} · ${t.ago}</span></div>`:""}
+    ${full?`<ul class="sub">${t.sub.map(s=>`<li class="${s[1]?"ok":""}">${s[0]}</li>`).join("")}</ul>`:""}
+    <div class="meta">${ic("clock","width:12px;height:12px")}<span>${t.due}</span><span style="flex:1"></span>${moreBtn(t.id,"子任务")}</div>
+  </article>`;
+}
+function vTasks(){
+  const base = tasks.filter(t=>!projF||t.p===projF);
+  const done = base.filter(t=>t.s==="done").length;
+  return `<div class="ph"><div><h1>任务进度</h1><p>任务来自 AI 对话，进度随每次对话自动更新，不用手动填。可以拖动卡片改变状态。</p></div>
+    <div class="meta"><span>${done}/${base.length} 已完成</span><button class="btn sm" data-toast="已与 Linear 同步 ${base.length} 个任务">${ic("arrow")}同步到 Linear</button></div></div>
+  <div class="kb-wrap"><div class="kb">${["todo","doing","blocked","done"].map(s=>{const ts=base.filter(t=>t.s===s);return `<div class="kc" data-col="${s}">
+    <div class="kc-h"><span class="tag s-${s}">${TS[s]}</span><span class="n">${ts.length}</span></div>
+    ${ts.map(taskCard).join("")}</div>`}).join("")}</div></div>`;
+}
+
+function vAct(){
+  return `<div class="ph"><div><h1>动态</h1><p>每个 AI 会话结束后自动生成一句话摘要。原始对话不公开，只展示本人发布的内容。</p></div></div>
+  <section class="box"><div class="tl">${activity.map((e,i)=>{const id="A"+i;return `<div class="ev">${av(e.who,true)}<div>
+    <div class="meta"><b style="color:var(--ink);font-weight:500">${M[e.who].n}</b>${pv(e.src)}<span>${e.time}</span></div>
+    <h3 style="margin-top:4px">${e.t}</h3>
+    ${showWhy(id)?`<p>${e.sum}</p>`:""}
+    <div class="outs">${e.outs.map(o=>`<span class="kind k-${o[0]}">${KIND[o[0]]} · ${o[1]}</span>`).join("")}<span style="flex:1"></span>${moreBtn(id)}</div>
+    ${showFull(id)?`<div class="detail"><ul>${e.det.map(x=>`<li>${x}</li>`).join("")}</ul></div>`:""}
+  </div></div>`}).join("")}</div></section>`;
+}
+
+function vInbox(){
+  if(!inbox.length) return `<div class="ph"><div><h1>收件箱</h1></div></div><section class="box"><div class="empty">全部处理完了。下次你和任何 AI 对话后，提炼结果会出现在这里。</div></section>`;
+  if(!inbox.find(s=>s.id===selSess)) selSess=inbox[0].id;
+  const s = inbox.find(x=>x.id===selSess);
+  return `<div class="ph"><div><h1>收件箱</h1><p>AI 已经替你提炼好了，勾选想发布的条目即可。没发布的内容只有你自己能看到。</p></div></div>
+  <div class="ib">
+    <section class="box ss">${inbox.map(x=>`<button class="sess" data-sess="${x.id}" aria-current="${x.id===selSess}"><span class="t">${x.t}</span><span class="meta">${pv(x.src)}<span>${x.time}</span></span></button>`).join("")}</section>
+    <section class="box rv">
+      <div class="meta">${pv(s.src)}<span>${s.time}</span></div>
+      <h2>${s.t}</h2>
+      <p class="sum">${s.sum}</p>
+      <div style="display:flex;flex-direction:column;gap:6px">${s.items.map((it,i)=>`<div class="ex"><input type="checkbox" id="ex-${s.id}-${i}" data-item="${i}" ${it.on?"checked":""}>
+        <label for="ex-${s.id}-${i}"><span><span class="kind k-${it.k}">${KIND[it.k]}</span></span><span>${it.t}</span>${it.s?`<span class="s ${it.warn?"warn":""}">${it.warn?"⚠ ":""}${it.s}</span>`:""}</label></div>`).join("")}</div>
+      <div class="acts">
+        <label class="rule" for="projSel">归入项目</label>
+        <select class="sel" id="projSel">${Object.entries(P).map(([k,p])=>`<option value="${k}" ${s.p===k?"selected":""}>${p.n}</option>`).join("")}<option value="" ${!s.p?"selected":""}>不归入项目</option></select>
+        <span class="sp"></span>
+        <button class="btn ghost" data-ib="discard">丢弃</button>
+        <button class="btn" data-ib="private">仅自己可见</button>
+        <button class="btn pri" data-ib="publish">发布到团队</button>
       </div>
+      <label class="rule"><input type="checkbox" id="autoRule" style="accent-color:var(--accent)"> 以后 ${PROV[s.src].n} 里属于「${s.p?P[s.p].n:"未分类"}」的会话自动发布（敏感内容仍会拦下）</label>
     </section>
   </div>`;
 }
 
-const answers = {
-  default:{q:"我们对支付方案做过哪些决定？",
-    a:`团队目前的支付方案是 <b>Stripe Checkout</b>，不自建支付表单，主要考虑 PCI 合规和只有 1 名后端的维护成本<span class="cite">1</span>。所有 webhook 按 <code>event.id</code> 做幂等去重，存 Redis 72 小时<span class="cite">2</span>。前端结算页由 Bob 负责，周五前完成<span class="cite">3</span>。`,
-    src:[[1,"alice","决策 · Claude Code · 今天 10:42"],[2,"me","决策 · Claude Code · 昨天（待发布）"],[3,"bob","任务 · Cursor · 今天 10:15"]]}
-};
-
-function renderMemory(){
-  const a = answers.default;
-  $("#main").innerHTML = `<div class="head"><div><h1>团队记忆</h1><p>用自然语言问团队的所有 AI 会话结论。你的 AI 也能通过 MCP 问同样的问题。</p></div></div>
-  <form class="ask" id="askForm"><input id="askInput" value="${a.q}" aria-label="向团队记忆提问"><button class="btn primary" type="submit">提问</button></form>
-  <div class="sugs">${["上周定价讨论的结论是什么？","谁在负责推荐算法？","还有哪些没定的问题？"].map(x=>`<button class="chip" data-sug="${x}">${x}</button>`).join("")}</div>
-  <div class="answer" id="answer">
-    <p>${a.a}</p>
-    <div class="sources">${a.src.map(s=>`<div><span class="cite">${s[0]}</span>${av(s[1])}<span>${M[s[1]].name} · ${s[2]}</span></div>`).join("")}</div>
-  </div>
-  <div class="section-t">接入你正在用的 AI</div>
-  <p class="hint">在 Claude Code、Cursor、Claude Desktop 中加入 AISync MCP Server，AI 会在需要时自动查询团队记忆。</p>
-  <div style="position:relative"><pre class="code" id="mcpCode">{
+function vAsk(){
+  return `<div class="ph"><div><h1>问团队记忆</h1><p>用自然语言提问，答案来自所有已发布的共识、任务和洞察。你正在用的 AI 也能通过 MCP 问同样的问题。</p></div></div>
+  <form class="box ask" id="askForm">${ic("ask","color:var(--accent)")}<input id="askIn" value="我们对支付方案做过哪些决定？" aria-label="提问"><button class="btn pri" type="submit">提问</button></form>
+  <div class="chips">${["上周定价讨论的结论是什么？","谁在负责推荐算法？","还有哪些问题没定？","官网改版卡在哪里？"].map(x=>`<button class="chip" data-sug="${x}">${x}</button>`).join("")}</div>
+  <section class="box ans">
+    <p>团队已经确认的支付方案是 <b>Stripe Checkout</b>，不自建支付表单，主要是考虑 PCI 合规，以及团队只有 1 名后端，维护成本最低<span class="ci">D-24</span>。所有 webhook 按 <code>event.id</code> 做幂等去重，在 Redis 保留 72 小时<span class="ci">D-21</span>。前端结算页由 Bob 负责，目前完成 3/5，预计周五交付<span class="ci">T-41</span>。</p>
+    <div class="srcs">
+      <div><span class="ci">D-24</span>${av("alice")}Alice · ${pv("claudecode")} · 共识 · 今天 10:42</div>
+      <div><span class="ci">D-21</span>${av("me")}陈晨 · ${pv("claudecode")} · 共识 · 昨天</div>
+      <div><span class="ci">T-41</span>${av("bob")}Bob · ${pv("cursor")} · 任务 · 12 分钟前</div>
+    </div>
+  </section>
+  <div class="two">
+    <section class="box"><div class="box-h"><h2>接入 MCP</h2><button class="btn sm" data-copy="mcp">${ic("copy")}复制</button></div>
+      <p class="pad">适用于 Claude Code、Cursor、Claude Desktop 等支持 MCP 的工具。AI 会在需要时自动查询团队记忆。</p>
+<pre class="code" id="mcp">{
   "mcpServers": {
     "aisync": {
       "command": "npx",
@@ -399,78 +730,136 @@ function renderMemory(){
       "env": { "AISYNC_WORKSPACE": "xinghuo" }
     }
   }
-}</pre><button class="btn copy" id="copyMcp">复制配置</button></div>
-  <div class="section-t">项目上下文包 · 支付上线</div>
-  <p class="hint">自动维护的项目背景，约 600 tokens。粘贴到 ChatGPT 自定义指令或 Claude Project 知识库，新对话不用再解释背景。</p>
-  <pre class="code">## 支付上线 · 上下文（自动更新于 今天 10:42）
-- 目标：10 月 1 日前支持付费订阅
-- 方案：Stripe Checkout（不自建表单），支持支付宝/微信支付
-- 后端：Alice · /api/checkout-session；webhook 按 event.id 幂等
-- 前端：Bob · 结算页 + /success /cancel 回跳
-- 未决：免费版人数上限（3 或 5 人）</pre>`;
+}</pre></section>
+    <section class="box"><div class="box-h"><h2>上下文包 · 支付上线</h2><button class="btn sm" data-copy="ctx">${ic("copy")}复制</button></div>
+      <p class="pad">适用于 ChatGPT、DeepSeek、Gemini、Grok 等不支持 MCP 的工具，粘贴到自定义指令或对话开头即可。约 180 tokens，自动更新。</p>
+<pre class="code" id="ctx">## 支付上线 · 团队上下文（更新于 今天 10:42）
+共识：
+- Stripe Checkout，不自建表单（D-24）
+- webhook 按 event.id 幂等，Redis 72h（D-21）
+进行中：
+- Bob · 结算页 3/5，周五交付（T-41）
+待定：
+- 免费版人数上限 3 或 5</pre></section>
+  </div>`;
 }
 
-function renderDigest(){
-  $("#main").innerHTML = `<div class="head"><div><h1>今日简报</h1><p>每天 18:00 自动推送到 Slack #daily，代替站会。</p></div><button class="btn" id="sendDigest">立即推送到 Slack</button></div>
-  <article class="digest">
-    <div><div class="meta">9 月 23 日 · 周三 · 由 38 个 AI 会话生成</div><h2>今天团队推进了支付上线，定价方案待拍板</h2></div>
-    <div class="kpis">
-      <div class="kpi"><b>4</b><span>新决策</span></div>
-      <div class="kpi"><b>6</b><span>新任务</span></div>
-      <div class="kpi"><b>2</b><span>待定问题</span></div>
-      <div class="kpi"><b>1</b><span>冲突待解决</span></div>
-    </div>
-    <div class="dg"><h3><span class="dot" style="background:${P.pay.color}"></span>支付上线</h3><ul>
-      <li>确定用 Stripe Checkout，不自建表单（Alice）</li><li>webhook 幂等方案已合并（陈晨）</li><li>结算页开发中，周五交付（Bob）</li></ul></div>
-    <div class="dg"><h3><span class="dot" style="background:${P.price.color}"></span>定价策略</h3><ul>
-      <li>竞品均价 $14/人/月，全部按席位（小林）</li><li><b>冲突</b>：陈晨草案 $12 vs 小林建议 $15+，需要讨论</li></ul></div>
-    <div class="dg"><h3><span class="dot" style="background:${P.site.color}"></span>官网改版</h3><ul>
-      <li>首屏两个方向已出稿，<b>等陈晨决定</b>（阻塞 Maya）</li></ul></div>
-    <div class="dg"><h3>明日提醒</h3><ul>
-      <li>Bob 与 Maya 在做重复的埋点方案，建议合并</li><li>周四：定价页文案交给 Maya</li></ul></div>
+function vDigest(){
+  return `<div class="ph"><div><h1>每日简报</h1><p>每个工作日 18:00 自动推送到 Slack #daily，代替站会。可以按人或按项目订阅。</p></div>
+    <div class="row-a"><button class="btn" data-toast="已推送到 Slack #daily">${ic("arrow")}立即推送</button></div></div>
+  <article class="box dg">
+    <div><div class="meta">9 月 23 日 周三 · 由 47 个 AI 会话生成 · ${["chatgpt","claude","deepseek","gemini","grok","claudecode","cursor"].map(k=>pv(k,true)).join("")}</div>
+    <h2 style="margin-top:8px">支付上线进入联调，定价方案还需要拍板</h2></div>
+    <div class="k"><div><b>3</b><span>新共识</span></div><div><b>6</b><span>任务有进展</span></div><div><b>2</b><span>已完成</span></div><div><b style="color:var(--red)">1</b><span>冲突</span></div><div><b style="color:var(--amber)">1</b><span>阻塞</span></div></div>
+    <div class="dgs"><h3>${proj("pay")}</h3><ul><li><b>共识</b>：Stripe Checkout，不自建表单（Alice）</li><li><b>完成</b>：webhook 签名校验与幂等，PR #128 已合并（Alice）</li><li><b>进行中</b>：结算页 3/5，周五交付（Bob）</li></ul></div>
+    <div class="dgs"><h3>${proj("price")}</h3><ul><li><b>完成</b>：竞品调研，均价 $14/人/月（小林）</li><li><b style="color:var(--red)">冲突</b>：陈晨 $12 vs 小林 ≥ $15，需要讨论</li></ul></div>
+    <div class="dgs"><h3>${proj("rec")}</h3><ul><li><b>进展</b>：召回 Recall@50 = 0.61，比基线高 9%（王磊）</li><li><b>讨论中</b>：冷启动用 7 日热门榜兜底</li></ul></div>
+    <div class="dgs"><h3>${proj("site")}</h3><ul><li><b style="color:var(--amber)">阻塞</b>：首屏方向等陈晨决定，影响 Maya 的视觉稿</li></ul></div>
+    <div class="dgs"><h3>明天提醒</h3><ul><li>Bob 和 Maya 的埋点方案重复，建议合并</li><li>周四：定价页文案交给 Maya</li></ul></div>
   </article>`;
 }
 
-function render(){
-  renderSide(); renderRail();
-  ({feed:renderFeed,inbox:renderInbox,memory:renderMemory,digest:renderDigest})[view]();
+function vInt(){
+  const ai = Object.keys(PROV);
+  const card = (k,p,on,desc,count,how) => `<div class="box ig"><div class="ig-h">${`<span class="pv only"><i style="background:${p.c}">${p.a}</i></span>`}<div><b>${p.n}</b><small>${desc}</small></div><span class="sp"></span>
+      <button class="sw" role="switch" aria-checked="${on}" aria-label="${p.n}" data-sw="${k}"></button></div>
+    ${how?`<div class="m"><span class="pill">${how}</span>${on?`<span class="pill" style="color:var(--green);border-color:color-mix(in srgb,var(--green) 35%,var(--line))">捕获中</span>`:""}</div>`:""}
+    ${count!==null?`<div class="f"><span>本周会话</span><b>${on?count:"—"}</b></div>`:""}</div>`;
+  return `<div class="ph"><div><h1>AI 接入</h1><p>不需要换工具：大家继续用自己习惯的 AI，AISync 在旁边自动捕获和提炼。默认只捕获，发布前由本人确认。</p></div>
+    <button class="btn" data-toast="已复制插件安装链接">${ic("copy")}邀请成员安装插件</button></div>
+  <div class="sec-t">对话来源 <span>${ai.filter(k=>conn[k]).length}/${ai.length} 已接入</span></div>
+  <div class="grid">${ai.map(k=>card(k,PROV[k],conn[k],PROV[k].how==="浏览器插件"?"网页版 · 桌面版":PROV[k].how==="导出导入"?"IDE 会话":"IDE / CLI",sessCount[k],PROV[k].how)).join("")}</div>
+  <div class="sec-t">同步到 <span>共识、任务和简报会推送到这些工具</span></div>
+  <div class="grid">${OUT.map(o=>card("o-"+o.k,{n:o.n,c:o.c,a:o.a},o.on,o.d,null,"")).join("")}</div>
+  <section class="box"><div class="box-h"><h2>隐私与脱敏</h2><span class="c">工作区级别</span></div>
+    <div class="list">${[["原始对话仅作者本人可见，管理员也无法查看",true],["自动打码 API Key、密码、手机号、邮箱",true],["财务数据、客户名单默认不发布",true],["允许使用自带的 LLM Key 做提炼（数据不出你的账号）",false]].map((r,i)=>`<div class="it" style="grid-template-columns:minmax(0,1fr) auto;align-items:center"><span>${r[0]}</span><button class="sw" role="switch" aria-checked="${r[1]}" aria-label="${r[0]}" data-sw="priv${i}"></button></div>`).join("")}</div></section>`;
 }
 
+const VIEWS = {home:vHome,cons:vCons,tasks:vTasks,act:vAct,inbox:vInbox,ask:vAsk,digest:vDigest,int:vInt};
+function render(){renderChrome(); $("#view").innerHTML = VIEWS[view]();}
+function go(v,{keepProj}={}){view=v; if(!keepProj) projF=null; render(); window.scrollTo({top:0});}
+
+/* ============ interactions ============ */
 document.addEventListener("click",e=>{
-  const t=e.target.closest("button"); if(!t) return;
-  if(t.dataset.view){view=t.dataset.view; if(view!=="feed") projFilter=null; render(); window.scrollTo({top:0}); return;}
-  if(t.dataset.proj!==undefined){projFilter=t.dataset.proj||null; view="feed"; render(); return;}
-  if(t.dataset.type){typeFilter=t.dataset.type; renderFeed(); return;}
-  if(t.dataset.quote){const q=$("#q-"+t.dataset.quote); q.hidden=!q.hidden; t.textContent=q.hidden?"查看来源片段":"收起"; return;}
-  if(t.dataset.reuse){toast("已复制为上下文，可粘贴到任意 AI 对话"); return;}
-  if(t.dataset.sess){selSession=t.dataset.sess; renderInbox(); return;}
-  if(t.dataset.inbox){
-    const i=inboxData.findIndex(x=>x.id===selSession), s=inboxData[i];
-    const proj=$("#projSel").value||null;
-    if(t.dataset.inbox==="publish"){
+  const b = e.target.closest("button"); if(!b) return;
+  const d = b.dataset;
+  if(b.id==="openPal") return openPal();
+  if(b.id==="newBtn") return go("inbox");
+  if(d.view) return go(d.view);
+  if(d.proj){projF=d.proj; view = view==="tasks"?"tasks":"cons"; render(); return;}
+  if("clearproj" in d){projF=null; render(); return;}
+  if(d.detail){detail=d.detail; store.set("aisync.detail",detail); open.clear(); render(); return;}
+  if(d.open){open.has(d.open)?open.delete(d.open):open.add(d.open); render(); return;}
+  if(d.decf){decF=d.decf; render(); return;}
+  if(d.goto){decF="all"; go("cons"); setTimeout(()=>{const el=document.getElementById(d.goto); el&&el.scrollIntoView({block:"center"}); el&&el.classList.add("flash")},30); return;}
+  if(d.resolve){decF="conflict"; go("cons"); return;}
+  if(d.ack){const x=decisions.find(y=>y.id===d.ack); if(!x.acks.includes("me")) x.acks.push("me");
+    if(x.acks.length>=3){x.s="confirmed"; delete x.need; const t=tasks.find(t=>t.block&&t.block.includes(x.id)); if(t){t.s="doing"; t.block=null; t.upd="首屏方向已确定，继续做视觉稿"; t.ago="刚刚";}}
+    render(); toast(x.s==="confirmed"?`${x.id} 已达成共识，相关阻塞已解除`:"已记录你的确认"); return;}
+  if(d.object){toast("已通知 "+M[decisions.find(y=>y.id===d.object).o].n+"，并在决策下开了讨论线程"); return;}
+  if(d.pick){const x=decisions.find(y=>y.id===d.pick); x.s="confirmed";
+    if(d.side==="b"){x.t="定价：按席位 $15/人/月 + AI 用量附加包"; x.why="参考竞品均价 $14，定在 $15 以保证毛利；用量包覆盖重度用户。"}
+    x.acks=[...new Set([...x.acks,"lin","me"])]; alerts=alerts.filter(a=>a!=="conflict"); render(); toast(`冲突已解决，${x.id} 已同步给全队和所有接入的 AI`); return;}
+  if(d.alertx){alerts=alerts.filter(a=>a!==d.alertx); render(); toast(d.msg); return;}
+  if(d.cite){const x=decisions.find(y=>y.id===d.cite); copy(`[团队共识 ${x.id}] ${x.t}。理由：${x.why}`,"已复制，可以粘贴到任意 AI 对话"); return;}
+  if("citeAll" in d){copy(decisions.filter(x=>x.s==="confirmed").map(x=>`- ${x.t}（${x.id}）`).join("\n"),"已复制全部已确认共识"); return;}
+  if(d.sess){selSess=d.sess; render(); return;}
+  if(d.ib){
+    const i=inbox.findIndex(x=>x.id===selSess), s=inbox[i], p=$("#projSel").value;
+    if(d.ib==="publish"){
       const picked=[...document.querySelectorAll("[data-item]")].filter(x=>x.checked).map(x=>s.items[+x.dataset.item]);
-      if(!picked.length){toast("先勾选至少一条要发布的内容");return;}
-      picked.slice().reverse().forEach(it=>cards.unshift({id:Date.now()+Math.random(),type:it.type,who:"me",src:s.src,proj,time:"刚刚",
-        title:it.title.replace(/<mark>.*?<\/mark>/g,"[已打码]"),body:"",quote:["陈晨 → "+s.src,s.summary],fresh:true}));
-      toast(`已发布 ${picked.length} 条到团队动态`);
-    } else toast(t.dataset.inbox==="private"?"已保存，仅你自己可见":"已丢弃");
-    inboxData.splice(i,1); render(); return;
+      if(!picked.length) return toast("先勾选至少一条要发布的内容");
+      let nd=0,nt=0;
+      picked.forEach(it=>{const t=it.t.replace(/<mark>.*?<\/mark>/g,"[已打码]");
+        if(it.k==="decision"){nd++; decisions.unshift({id:"D-"+(25+nd),t,p,s:"discussing",o:"me",src:s.src,time:"刚刚",acks:["me"],why:it.s||s.sum,alt:[],q:s.sum});}
+        else if(it.k==="task"){nt++; tasks.unshift({id:"T-"+(42+nt),t:t.replace(/^.+?：/,""),p,o:"me",s:"todo",src:s.src,due:"本周",sub:[["待拆分",0]],upd:"由收件箱发布",ago:"刚刚"});}
+        activity.unshift({who:"me",src:s.src,time:"刚刚",t:s.t,sum:s.sum,outs:[[it.k,t.slice(0,18)+(t.length>18?"…":"")]],det:["来自收件箱发布"]});});
+      toast(`已发布 ${picked.length} 条${nd?`，其中 ${nd} 条决策等待队友确认`:""}`);
+    } else toast(d.ib==="private"?"已保存，只有你自己可见":"已丢弃");
+    inbox.splice(i,1); render(); return;
   }
-  if(t.dataset.alert!==undefined){
-    const i=+t.dataset.alert; const act=t.dataset.act;
-    if(act.startsWith("查看")){toast("在新面板中对比两边的原始片段");return;}
-    if(act==="去回答"){view="feed";typeFilter="question";alerts.splice(i,1);render();return;}
-    alerts.splice(i,1); renderRail(); toast(act==="发起讨论"?"已在 #pricing 创建讨论，并 @ 小林":"已通知 Bob，附上 Maya 的结论"); return;
-  }
-  if(t.dataset.sug){$("#askInput").value=t.dataset.sug; toast("原型中仅演示一个示例回答"); return;}
-  if(t.id==="copyMcp"){
-    const txt=$("#mcpCode").textContent;
-    try{navigator.clipboard.writeText(txt).then(()=>toast("已复制 MCP 配置"),()=>toast("复制失败，请手动选中复制"));}catch(err){toast("复制失败，请手动选中复制");}
-    return;
-  }
-  if(t.id==="sendDigest"){toast("已推送到 Slack #daily");return;}
+  if(d.sw){const k=d.sw; if(k in conn){conn[k]=!conn[k]; render(); toast(conn[k]?`${PROV[k].n} 已接入，开始捕获`:`已暂停捕获 ${PROV[k].n}`);} else {const o=OUT.find(o=>"o-"+o.k===k); if(o){o.on=!o.on; render(); toast(o.on?`已连接 ${o.n}`:`已断开 ${o.n}`);} else {b.setAttribute("aria-checked", b.getAttribute("aria-checked")!=="true");}} return;}
+  if(d.sug){$("#askIn").value=d.sug; toast("原型里只演示一个示例回答"); return;}
+  if(d.copy){copy($("#"+d.copy).textContent,"已复制"); return;}
+  if(d.toast){toast(d.toast); return;}
 });
-document.addEventListener("submit",e=>{e.preventDefault();toast("原型中仅演示一个示例回答")});
+function copy(t,msg){try{navigator.clipboard.writeText(t).then(()=>toast(msg),()=>toast("复制失败，请手动选中复制"))}catch(err){toast("复制失败，请手动选中复制")}}
+document.addEventListener("submit",e=>{e.preventDefault(); toast("原型里只演示一个示例回答");});
+
+/* drag & drop for kanban */
+let dragId=null;
+document.addEventListener("dragstart",e=>{const t=e.target.closest?.("[data-task]"); if(!t) return; dragId=t.dataset.task; t.classList.add("drag"); try{e.dataTransfer.setData("text/plain",dragId)}catch(_){}});
+document.addEventListener("dragend",e=>{document.querySelectorAll(".drag,.over").forEach(x=>x.classList.remove("drag","over"))});
+document.addEventListener("dragover",e=>{const c=e.target.closest?.("[data-col]"); if(!c||!dragId) return; e.preventDefault(); document.querySelectorAll(".over").forEach(x=>x!==c&&x.classList.remove("over")); c.classList.add("over");});
+document.addEventListener("drop",e=>{const c=e.target.closest?.("[data-col]"); if(!c||!dragId) return; e.preventDefault();
+  const t=tasks.find(x=>x.id===dragId); const s=c.dataset.col; dragId=null;
+  if(t && t.s!==s){t.s=s; if(s==="done") t.sub.forEach(x=>x[1]=1); if(s!=="blocked") t.block=null; t.upd="手动移动到「"+TS[s]+"」"; t.ago="刚刚"; render(); toast(`${t.id} → ${TS[s]}`);}});
+
+/* command palette */
+let palItems=[], palSel=0;
+function openPal(){$("#pal").hidden=false; $("#palIn").value=""; buildPal(""); setTimeout(()=>$("#palIn").focus(),0);}
+function closePal(){$("#pal").hidden=true;}
+function buildPal(q){
+  q=q.trim().toLowerCase();
+  const m = s => !q || s.toLowerCase().includes(q);
+  const nav = NAV.filter(n=>m(n[1])).map(n=>({g:"跳转",h:`${ic(n[2])}<span class="sp">${n[1]}</span>`,run:()=>go(n[0])}));
+  const ds = decisions.filter(d=>m(d.t+d.id+M[d.o].n)).slice(0,5).map(d=>({g:"共识",h:`${ic("cons")}<span class="sp">${d.t}</span><span class="tag s-${d.s}">${DS[d.s]}</span>`,run:()=>{decF="all";go("cons");open.add(d.id);render();setTimeout(()=>{const el=document.getElementById(d.id);el&&(el.scrollIntoView({block:"center"}),el.classList.add("flash"))},30)}}));
+  const ts = tasks.filter(t=>m(t.t+t.id+M[t.o].n)).slice(0,5).map(t=>({g:"任务",h:`${ic("task")}<span class="sp">${t.t}</span><small>${M[t.o].n} · ${TS[t.s]}</small>`,run:()=>{go("tasks");open.add(t.id);render();setTimeout(()=>{const el=document.getElementById(t.id);el&&(el.scrollIntoView({block:"center",inline:"center"}),el.classList.add("flash"))},30)}}));
+  const ask = q?[{g:"问团队记忆",h:`${ic("ask")}<span class="sp">问：“${q}”</span>`,run:()=>{go("ask");$("#askIn").value=q}}]:[];
+  palItems=[...ask,...ds,...ts,...nav]; palSel=0;
+  let g=""; $("#palList").innerHTML = palItems.map((it,i)=>{const hd=it.g!==g?`<div class="pal-g">${g=it.g}</div>`:"";return hd+`<button class="po" data-pi="${i}" aria-selected="${i===palSel}">${it.h}</button>`}).join("") || `<div class="empty">没有找到结果</div>`;
+}
+function palMark(){document.querySelectorAll(".po").forEach(b=>b.setAttribute("aria-selected",+b.dataset.pi===palSel)); document.querySelector(`.po[data-pi="${palSel}"]`)?.scrollIntoView({block:"nearest"});}
+$("#palIn").addEventListener("input",e=>buildPal(e.target.value));
+$("#pal").addEventListener("click",e=>{const o=e.target.closest(".po"); if(o){e.stopPropagation(); closePal(); palItems[+o.dataset.pi].run(); return;} if(e.target.id==="pal") closePal();},true);
+document.addEventListener("keydown",e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="k"){e.preventDefault(); $("#pal").hidden?openPal():closePal(); return;}
+  if($("#pal").hidden) return;
+  if(e.key==="Escape") closePal();
+  else if(e.key==="ArrowDown"){e.preventDefault(); palSel=Math.min(palSel+1,palItems.length-1); palMark();}
+  else if(e.key==="ArrowUp"){e.preventDefault(); palSel=Math.max(palSel-1,0); palMark();}
+  else if(e.key==="Enter"&&palItems[palSel]){e.preventDefault(); closePal(); palItems[palSel].run();}
+});
 
 render();
 </script>
