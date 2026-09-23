@@ -1,0 +1,476 @@
+<title>AISync 原型</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<style>
+:root{
+  --ground:#F2F4F1; --surface:#FFFFFF; --sunk:#E9ECE7; --ink:#1A1F1C; --muted:#646D68; --line:#DCE1DB;
+  --accent:#1E6B58; --accent-soft:#DDEEE8; --on-accent:#FFFFFF;
+  --decision:#2E5CC9; --task:#A86C12; --insight:#2B7F4E; --question:#8E3A86; --conflict:#C03D2B;
+  --decision-bg:#E6ECFA; --task-bg:#F7EEDD; --insight-bg:#E2F1E7; --question-bg:#F4E5F2; --conflict-bg:#FBE7E3;
+  --redact:#FFE9A8;
+  --sans:"IBM Plex Sans","Noto Sans SC",system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --ground:#121614; --surface:#1A201D; --sunk:#232A26; --ink:#E6EBE7; --muted:#98A29C; --line:#2E3632;
+    --accent:#5CC2A5; --accent-soft:#1D3A32; --on-accent:#0D1A16;
+    --decision:#8AA8F2; --task:#E3AE5A; --insight:#74C895; --question:#D48BCB; --conflict:#F08A78;
+    --decision-bg:#1E2840; --task-bg:#33291A; --insight-bg:#1A3024; --question-bg:#332031; --conflict-bg:#3A1F1A;
+    --redact:#5A4A12;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ground:#121614; --surface:#1A201D; --sunk:#232A26; --ink:#E6EBE7; --muted:#98A29C; --line:#2E3632;
+  --accent:#5CC2A5; --accent-soft:#1D3A32; --on-accent:#0D1A16;
+  --decision:#8AA8F2; --task:#E3AE5A; --insight:#74C895; --question:#D48BCB; --conflict:#F08A78;
+  --decision-bg:#1E2840; --task-bg:#33291A; --insight-bg:#1A3024; --question-bg:#332031; --conflict-bg:#3A1F1A;
+  --redact:#5A4A12;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.55;padding-inline:16px;}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.app{max-width:1280px;margin:0 auto;padding-block:16px;display:grid;grid-template-columns:200px minmax(0,1fr) 300px;gap:20px;align-items:start}
+
+/* sidebar */
+.side{position:sticky;top:calc(env(safe-area-inset-top,0px) + 16px);display:flex;flex-direction:column;gap:20px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:16px}
+.brand-mark{width:28px;height:28px;border-radius:7px;background:var(--accent);display:grid;place-items:center}
+.brand-mark svg{display:block}
+.ws{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.04em}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav button{display:flex;justify-content:space-between;align-items:center;background:none;border:0;text-align:left;padding:7px 10px;border-radius:6px;color:var(--muted)}
+.nav button:hover{background:var(--sunk);color:var(--ink)}
+.nav button[aria-current="page"]{background:var(--surface);color:var(--ink);font-weight:500;box-shadow:0 0 0 1px var(--line)}
+.count{font-family:var(--mono);font-size:11px;background:var(--accent);color:var(--on-accent);border-radius:999px;padding:0 7px;min-width:20px;text-align:center}
+.count[data-zero="1"]{display:none}
+.side h4{margin:0 0 6px;font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding-inline:10px}
+.proj{display:flex;flex-direction:column;gap:2px}
+.proj button{background:none;border:0;text-align:left;padding:5px 10px;border-radius:6px;color:var(--muted);display:flex;gap:8px;align-items:center}
+.proj button:hover{color:var(--ink)}
+.proj button[aria-pressed="true"]{color:var(--ink);font-weight:500;background:var(--sunk)}
+.dot{width:7px;height:7px;border-radius:2px;background:var(--muted);flex:none}
+.members{display:flex;flex-wrap:wrap;gap:6px;padding-inline:10px}
+
+.av{width:24px;height:24px;border-radius:50%;display:inline-grid;place-items:center;font-size:11px;font-weight:600;color:#fff;flex:none}
+
+/* main */
+main{min-width:0}
+.head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:end;gap:12px;margin-bottom:14px}
+.head h1{margin:0;font-size:22px;font-weight:600;text-wrap:balance}
+.head p{margin:2px 0 0;color:var(--muted)}
+.filters{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:3px 11px;font-size:12px;color:var(--muted)}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--ground);border-color:var(--ink)}
+
+.feed{display:flex;flex-direction:column;gap:10px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:grid;grid-template-columns:auto 1fr;gap:4px 12px}
+.card .av{grid-row:span 3;margin-top:2px}
+.meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:12px;color:var(--muted)}
+.meta b{color:var(--ink);font-weight:500}
+.src{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-radius:4px;padding:0 6px}
+.type{font-size:11px;font-weight:600;border-radius:4px;padding:1px 7px;letter-spacing:.02em}
+.t-decision{color:var(--decision);background:var(--decision-bg)}
+.t-task{color:var(--task);background:var(--task-bg)}
+.t-insight{color:var(--insight);background:var(--insight-bg)}
+.t-question{color:var(--question);background:var(--question-bg)}
+.t-conflict{color:var(--conflict);background:var(--conflict-bg)}
+.card h3{margin:2px 0 0;font-size:15px;font-weight:600;line-height:1.4;text-wrap:balance}
+.card .body{color:var(--ink);opacity:.86;max-width:68ch}
+.card .foot{display:flex;flex-wrap:wrap;gap:12px;margin-top:6px;grid-column:2}
+.link{background:none;border:0;padding:0;color:var(--accent);font-size:12px;font-weight:500}
+.quote{grid-column:2;margin:6px 0 0;padding:8px 12px;border-left:2px solid var(--line);background:var(--sunk);border-radius:0 6px 6px 0;font-size:13px;color:var(--muted)}
+.quote .who{font-family:var(--mono);font-size:11px;display:block;margin-bottom:2px}
+.new{animation:flash 1.6s ease-out}
+@keyframes flash{from{box-shadow:0 0 0 3px var(--accent)}to{box-shadow:0 0 0 0 transparent}}
+
+/* rail */
+.rail{display:flex;flex-direction:column;gap:14px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 16px)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px}
+.panel h2{margin:0 0 10px;font-size:13px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+.alert{padding:10px 0;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.alert:first-of-type{border-top:0;padding-top:0}
+.alert p{margin:0;font-size:13px}
+.alert .row{display:flex;gap:8px;flex-wrap:wrap}
+.vs{display:grid;grid-template-columns:1fr;gap:4px;font-size:12px}
+.vs div{background:var(--sunk);border-radius:6px;padding:6px 8px}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:5px 12px;font-size:12px;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.btn.primary:hover{filter:brightness(1.08)}
+.stat{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);padding:3px 0}
+.stat b{font-family:var(--mono);color:var(--ink);font-weight:500;font-variant-numeric:tabular-nums}
+.bar{height:6px;border-radius:3px;background:var(--sunk);overflow:hidden;display:flex;margin:8px 0 4px}
+.bar span{display:block;height:100%}
+
+/* inbox */
+.inbox{display:grid;grid-template-columns:240px minmax(0,1fr);gap:14px;align-items:start}
+.sessions{display:flex;flex-direction:column;gap:6px}
+.sess{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;text-align:left;display:flex;flex-direction:column;gap:3px}
+.sess[aria-current="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.sess .t{font-weight:500;font-size:13px}
+.sess .m{font-size:11px;color:var(--muted);font-family:var(--mono)}
+.review{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px}
+.review h2{margin:0;font-size:17px}
+.summary{color:var(--muted);margin:0;max-width:70ch}
+.extract{display:flex;flex-direction:column;gap:6px}
+.ex{display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid var(--line);border-radius:8px}
+.ex input{margin-top:4px;accent-color:var(--accent)}
+.ex label{display:flex;flex-direction:column;gap:3px;cursor:pointer;flex:1}
+.ex .txt{font-weight:500}
+.ex .sub{font-size:12px;color:var(--muted)}
+mark{background:var(--redact);color:inherit;border-radius:3px;padding:0 3px;font-family:var(--mono);font-size:12px}
+.warn{font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center}
+.actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;border-top:1px solid var(--line);padding-top:12px}
+.actions .spacer{flex:1}
+.projsel{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:4px 8px;font:inherit;font-size:12px;color:var(--ink)}
+.empty{padding:40px 16px;text-align:center;color:var(--muted);background:var(--surface);border:1px dashed var(--line);border-radius:10px}
+
+/* memory */
+.ask{display:flex;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:6px 6px 6px 14px;align-items:center}
+.ask input{flex:1;border:0;background:none;font:inherit;font-size:15px;color:var(--ink);min-width:0;padding:6px 0}
+.ask input:focus{outline:none}
+.ask:focus-within{border-color:var(--accent)}
+.sugs{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 16px}
+.answer{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.answer p{margin:0;max-width:70ch}
+.cite{font-family:var(--mono);font-size:11px;color:var(--accent);background:var(--accent-soft);border-radius:4px;padding:0 5px;margin-left:2px}
+.sources{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:10px}
+.sources div{font-size:12px;color:var(--muted);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.code{position:relative;background:var(--sunk);border-radius:8px;padding:12px;font-family:var(--mono);font-size:12px;overflow-x:auto;white-space:pre;margin:0}
+.copy{position:absolute;top:8px;right:8px}
+.section-t{font-size:13px;font-weight:600;margin:22px 0 8px}
+.hint{font-size:12px;color:var(--muted);margin:0 0 8px}
+
+/* digest */
+.digest{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:20px;display:flex;flex-direction:column;gap:18px}
+.digest h2{margin:0;font-size:18px}
+.dg{display:grid;grid-template-columns:130px 1fr;gap:12px;border-top:1px solid var(--line);padding-top:14px}
+.dg h3{margin:0;font-size:13px;display:flex;gap:8px;align-items:center}
+.dg ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
+.dg li{max-width:70ch}
+.kpis{display:flex;flex-wrap:wrap;gap:22px}
+.kpi b{display:block;font-family:var(--mono);font-size:22px;font-weight:500;font-variant-numeric:tabular-nums}
+.kpi span{font-size:12px;color:var(--muted)}
+
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 20px);transform:translateX(-50%);background:var(--ink);color:var(--ground);padding:9px 16px;border-radius:8px;font-size:13px;z-index:10}
+
+@media (max-width:1080px){
+  .app{grid-template-columns:180px minmax(0,1fr)}
+  .rail{grid-column:2;position:static}
+}
+@media (max-width:720px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .side{position:static;gap:12px}
+  .nav{flex-direction:row;overflow-x:auto;gap:4px}
+  .nav button{white-space:nowrap;gap:6px}
+  .side .grp{display:none}
+  .rail{grid-column:1}
+  .inbox{grid-template-columns:minmax(0,1fr)}
+  .sessions{flex-direction:row;overflow-x:auto}
+  .sess{min-width:200px}
+  .dg{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){ .new{animation:none} }
+</style>
+
+<div class="app">
+  <aside class="side">
+    <div>
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 5.5h7.5M8 3l2.5 2.5L8 8" stroke="var(--on-accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M13 10.5H5.5M8 8l-2.5 2.5L8 13" stroke="var(--on-accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+        AISync
+      </div>
+      <div class="ws">WORKSPACE · 星火科技 · 5 人</div>
+    </div>
+    <nav class="nav" aria-label="主导航">
+      <button data-view="feed" aria-current="page">团队动态</button>
+      <button data-view="inbox">收件箱 <span class="count" id="inboxCount">3</span></button>
+      <button data-view="memory">团队记忆</button>
+      <button data-view="digest">今日简报</button>
+    </nav>
+    <div class="grp">
+      <h4>项目</h4>
+      <div class="proj" id="projList"></div>
+    </div>
+    <div class="grp">
+      <h4>成员 · 今日活跃</h4>
+      <div class="members" id="memberList"></div>
+    </div>
+  </aside>
+
+  <main id="main"></main>
+
+  <aside class="rail" id="rail">
+    <section class="panel">
+      <h2>需要你关注 <span class="type t-conflict" id="alertCount">3</span></h2>
+      <div id="alerts"></div>
+    </section>
+    <section class="panel">
+      <h2>本周 AI 工作分布</h2>
+      <div class="bar" id="srcBar" aria-hidden="true"></div>
+      <div id="srcStats"></div>
+      <p class="hint" style="margin:8px 0 0">只统计会话数量，不含内容。</p>
+    </section>
+  </aside>
+</div>
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script>
+const M = {
+  me:   {name:"陈晨", role:"CEO", color:"#1E6B58"},
+  alice:{name:"Alice", role:"后端", color:"#2E5CC9"},
+  bob:  {name:"Bob", role:"前端", color:"#A86C12"},
+  lin:  {name:"小林", role:"增长", color:"#8E3A86"},
+  maya: {name:"Maya", role:"设计", color:"#C03D2B"}
+};
+const P = {
+  pay:  {name:"支付上线", color:"#2E5CC9"},
+  price:{name:"定价策略", color:"#A86C12"},
+  rec:  {name:"推荐算法", color:"#2B7F4E"},
+  site: {name:"官网改版", color:"#8E3A86"}
+};
+const TYPE = {decision:"决策", task:"任务", insight:"洞察", question:"待定问题"};
+
+let cards = [
+  {id:1,type:"decision",who:"alice",src:"Claude Code",proj:"pay",time:"10:42",
+   title:"支付走 Stripe Checkout，不自建支付表单",
+   body:"PCI 合规成本太高；Checkout 支持支付宝和微信支付，两天可上线。后续需要订阅管理时再接 Billing Portal。",
+   quote:["Alice → Claude","对比了 Elements 和 Checkout，考虑到团队只有 1 个后端，Checkout 维护成本最低……"]},
+  {id:2,type:"task",who:"bob",src:"Cursor",proj:"pay",time:"10:15",
+   title:"Bob：周五前完成结算页 + 成功/失败回跳页面",
+   body:"依赖 Alice 的 /api/checkout-session 接口；已在 Cursor 里根据接口草稿生成了页面骨架。",
+   quote:["Bob → Cursor","根据 Alice 的接口定义生成 CheckoutButton 组件和 /success 页面……"]},
+  {id:3,type:"insight",who:"lin",src:"ChatGPT",proj:"price",time:"09:58",
+   title:"3 家主要竞品全部按席位收费，均价 $14/人/月",
+   body:"其中 2 家提供按用量计费的附加包。免费版普遍限制 3 人以内。",
+   quote:["小林 → ChatGPT","整理这 5 家竞品的定价页，做成表格，标注是否有免费版……"]},
+  {id:4,type:"question",who:"maya",src:"Claude",proj:"site",time:"09:30",
+   title:"官网首屏讲「团队协同」还是「个人效率」？",
+   body:"AI 给出了两个方向的文案和线框，需要 @陈晨 定方向，周三设计评审前。",
+   quote:["Maya → Claude","我们的目标用户是创业团队，首屏应该强调……"]},
+  {id:5,type:"decision",who:"alice",src:"Claude",proj:"rec",time:"昨天",
+   title:"MVP 向量检索用 Postgres + pgvector，不引入独立向量库",
+   body:"数据量 < 100 万条前性能足够；少一个服务少一份运维。",
+   quote:["Alice → Claude","Pinecone vs pgvector，在我们 10 万量级的数据下……"]}
+];
+
+const inboxData = [
+  {id:"s1",title:"定价：按用量还是按席位？",src:"ChatGPT",time:"11:20 · 42 条消息",proj:"price",
+   summary:"和 ChatGPT 讨论了两种定价模式的利弊，参考了小林整理的竞品数据，倾向于「席位 + 用量附加包」的混合方案。",
+   items:[
+    {type:"decision",title:"采用「按席位 $12/人/月 + AI 用量附加包」",sub:"理由：与竞品对齐降低认知成本，用量包覆盖重度用户",on:true},
+    {type:"question",title:"免费版是 3 人还是 5 人上限？",sub:"需要看激活数据后再定",on:true},
+    {type:"task",title:"陈晨：周四前把定价页文案给 Maya",sub:"",on:true},
+    {type:"insight",title:"测试用 Stripe 密钥 <mark>sk_test_••••••••3f9a</mark> 已配置",sub:"检测到密钥，已自动打码。建议不要发布此条",on:false,sensitive:true}
+   ]},
+  {id:"s2",title:"给投资人的月度更新邮件",src:"Claude",time:"08:50 · 12 条消息",proj:null,
+   summary:"起草了 9 月投资人更新邮件，包含收入、用户数和下月目标。",
+   items:[
+    {type:"insight",title:"9 月 MRR <mark>$••,•••</mark>，环比 +18%",sub:"检测到财务数据，默认不发布",on:false,sensitive:true},
+    {type:"task",title:"陈晨：周一发送投资人更新",sub:"",on:false}
+   ]},
+  {id:"s3",title:"修复 webhook 重复回调",src:"Claude Code",time:"昨天 · 仓库 aisync",proj:"pay",
+   summary:"定位到 Stripe webhook 重试导致订单重复创建，加了幂等键，已提交 PR。",
+   items:[
+    {type:"decision",title:"所有 webhook 处理按 event.id 做幂等去重",sub:"存 Redis，保留 72 小时",on:true},
+    {type:"insight",title:"Stripe 会在 3 天内指数退避重试失败的 webhook",sub:"",on:true}
+   ]}
+];
+
+const alerts = [
+  {kind:"conflict",text:"<b>定价冲突</b>：你收件箱里的新决策与已发布结论可能矛盾",
+   a:"你（草稿）：按席位 $12/人/月",b:"小林（洞察）：竞品均价 $14，建议 $15 以上",actions:["发起讨论","查看两边来源"]},
+  {kind:"dup",text:"<b>重复工作</b>：Bob 正在 Cursor 里研究「支付成功页埋点」，Maya 昨天已在 Claude 里做过同一件事",actions:["通知 Bob"]},
+  {kind:"q",text:"<b>@你的问题</b>：Maya 在等你决定官网首屏方向（周三前）",actions:["去回答"]}
+];
+
+const srcs = [["Claude Code",31,"#2E5CC9"],["ChatGPT",24,"#2B7F4E"],["Cursor",19,"#A86C12"],["Claude",17,"#8E3A86"],["Gemini",6,"#8A948E"]];
+
+let view="feed", typeFilter="all", projFilter=null, selSession="s1";
+const $=s=>document.querySelector(s);
+
+function av(k){const m=M[k];return `<span class="av" style="background:${m.color}" title="${m.name} · ${m.role}">${m.name.slice(0,1)}</span>`}
+function toast(t){const el=$("#toast");el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,2400)}
+
+function renderSide(){
+  $("#projList").innerHTML = `<button aria-pressed="${!projFilter}" data-proj=""><span class="dot"></span>全部项目</button>` +
+    Object.entries(P).map(([k,p])=>`<button aria-pressed="${projFilter===k}" data-proj="${k}"><span class="dot" style="background:${p.color}"></span>${p.name}</button>`).join("");
+  $("#memberList").innerHTML = Object.keys(M).map(av).join("");
+  const n = inboxData.length; const c=$("#inboxCount"); c.textContent=n; c.dataset.zero = n?0:1;
+  document.querySelectorAll(".nav button").forEach(b=>b.setAttribute("aria-current", b.dataset.view===view?"page":"false"));
+}
+
+function renderRail(){
+  $("#alerts").innerHTML = alerts.map((a,i)=>`<div class="alert">
+    <p>${a.text}</p>
+    ${a.a?`<div class="vs"><div>${a.a}</div><div>${a.b}</div></div>`:""}
+    <div class="row">${a.actions.map((x,j)=>`<button class="btn ${j===0?"primary":""}" data-alert="${i}" data-act="${x}">${x}</button>`).join("")}</div>
+  </div>`).join("") || `<p class="hint" style="margin:0">都处理完了。</p>`;
+  $("#alertCount").textContent = alerts.length;
+  const tot = srcs.reduce((s,x)=>s+x[1],0);
+  $("#srcBar").innerHTML = srcs.map(s=>`<span style="width:${s[1]/tot*100}%;background:${s[2]}"></span>`).join("");
+  $("#srcStats").innerHTML = srcs.map(s=>`<div class="stat"><span><span class="dot" style="display:inline-block;background:${s[2]};margin-right:6px"></span>${s[0]}</span><b>${s[1]} 个会话</b></div>`).join("");
+}
+
+function cardHTML(c){
+  return `<article class="card ${c.fresh?"new":""}" id="card-${c.id}">
+    ${av(c.who)}
+    <div class="meta"><span class="type t-${c.type}">${TYPE[c.type]}</span><b>${M[c.who].name}</b><span class="src">${c.src}</span>${c.proj?`<span>${P[c.proj].name}</span>`:""}<span>${c.time}</span></div>
+    <h3>${c.title}</h3>
+    ${c.body?`<div class="body">${c.body}</div>`:""}
+    <div class="foot"><button class="link" data-quote="${c.id}">查看来源片段</button><button class="link" data-reuse="${c.id}">引用到我的 AI</button></div>
+    <div class="quote" id="q-${c.id}" hidden><span class="who">${c.quote[0]}</span>“${c.quote[1]}”</div>
+  </article>`;
+}
+
+function renderFeed(){
+  const list = cards.filter(c=>(typeFilter==="all"||c.type===typeFilter)&&(!projFilter||c.proj===projFilter));
+  $("#main").innerHTML = `<div class="head">
+      <div><h1>${projFilter?P[projFilter].name:"团队动态"}</h1><p>大家今天在各自的 AI 里推进了什么 —— 只显示本人发布的结论，原始对话不公开。</p></div>
+      <div class="filters">${[["all","全部"],...Object.entries(TYPE)].map(([k,v])=>`<button class="chip" aria-pressed="${typeFilter===k}" data-type="${k}">${v}</button>`).join("")}</div>
+    </div>
+    <div class="feed">${list.map(cardHTML).join("") || `<div class="empty">这个筛选下还没有卡片。</div>`}</div>`;
+  cards.forEach(c=>delete c.fresh);
+}
+
+function renderInbox(){
+  if(!inboxData.length){
+    $("#main").innerHTML = `<div class="head"><div><h1>收件箱</h1><p>新捕获的会话会先到这里，由你决定是否发布。</p></div></div><div class="empty">全部处理完了。下一次你和 AI 对话后，提炼结果会出现在这里。</div>`;
+    return;
+  }
+  if(!inboxData.find(s=>s.id===selSession)) selSession = inboxData[0].id;
+  const s = inboxData.find(x=>x.id===selSession);
+  $("#main").innerHTML = `<div class="head"><div><h1>收件箱</h1><p>AI 已替你提炼好，勾选要发布的条目即可。未发布的内容只有你自己能看到。</p></div></div>
+  <div class="inbox">
+    <div class="sessions">${inboxData.map(x=>`<button class="sess" data-sess="${x.id}" aria-current="${x.id===selSession}">
+      <span class="t">${x.title}</span><span class="m">${x.src} · ${x.time}</span></button>`).join("")}</div>
+    <section class="review">
+      <div class="meta"><span class="src">${s.src}</span><span>${s.time}</span></div>
+      <h2>${s.title}</h2>
+      <p class="summary">${s.summary}</p>
+      <div class="extract">${s.items.map((it,i)=>`<div class="ex">
+        <input type="checkbox" id="ex-${s.id}-${i}" data-item="${i}" ${it.on?"checked":""}>
+        <label for="ex-${s.id}-${i}"><span><span class="type t-${it.type}">${TYPE[it.type]}</span></span><span class="txt">${it.title}</span>${it.sub?`<span class="sub">${it.sensitive?"⚠ ":""}${it.sub}</span>`:""}</label>
+      </div>`).join("")}</div>
+      <div class="actions">
+        <label class="warn" for="projSel">归入项目</label>
+        <select class="projsel" id="projSel">${Object.entries(P).map(([k,p])=>`<option value="${k}" ${s.proj===k?"selected":""}>${p.name}</option>`).join("")}<option value="" ${!s.proj?"selected":""}>不归入项目</option></select>
+        <span class="spacer"></span>
+        <button class="btn" data-inbox="discard">丢弃</button>
+        <button class="btn" data-inbox="private">仅自己可见</button>
+        <button class="btn primary" data-inbox="publish">发布到团队</button>
+      </div>
+    </section>
+  </div>`;
+}
+
+const answers = {
+  default:{q:"我们对支付方案做过哪些决定？",
+    a:`团队目前的支付方案是 <b>Stripe Checkout</b>，不自建支付表单，主要考虑 PCI 合规和只有 1 名后端的维护成本<span class="cite">1</span>。所有 webhook 按 <code>event.id</code> 做幂等去重，存 Redis 72 小时<span class="cite">2</span>。前端结算页由 Bob 负责，周五前完成<span class="cite">3</span>。`,
+    src:[[1,"alice","决策 · Claude Code · 今天 10:42"],[2,"me","决策 · Claude Code · 昨天（待发布）"],[3,"bob","任务 · Cursor · 今天 10:15"]]}
+};
+
+function renderMemory(){
+  const a = answers.default;
+  $("#main").innerHTML = `<div class="head"><div><h1>团队记忆</h1><p>用自然语言问团队的所有 AI 会话结论。你的 AI 也能通过 MCP 问同样的问题。</p></div></div>
+  <form class="ask" id="askForm"><input id="askInput" value="${a.q}" aria-label="向团队记忆提问"><button class="btn primary" type="submit">提问</button></form>
+  <div class="sugs">${["上周定价讨论的结论是什么？","谁在负责推荐算法？","还有哪些没定的问题？"].map(x=>`<button class="chip" data-sug="${x}">${x}</button>`).join("")}</div>
+  <div class="answer" id="answer">
+    <p>${a.a}</p>
+    <div class="sources">${a.src.map(s=>`<div><span class="cite">${s[0]}</span>${av(s[1])}<span>${M[s[1]].name} · ${s[2]}</span></div>`).join("")}</div>
+  </div>
+  <div class="section-t">接入你正在用的 AI</div>
+  <p class="hint">在 Claude Code、Cursor、Claude Desktop 中加入 AISync MCP Server，AI 会在需要时自动查询团队记忆。</p>
+  <div style="position:relative"><pre class="code" id="mcpCode">{
+  "mcpServers": {
+    "aisync": {
+      "command": "npx",
+      "args": ["-y", "@aisync/mcp"],
+      "env": { "AISYNC_WORKSPACE": "xinghuo" }
+    }
+  }
+}</pre><button class="btn copy" id="copyMcp">复制配置</button></div>
+  <div class="section-t">项目上下文包 · 支付上线</div>
+  <p class="hint">自动维护的项目背景，约 600 tokens。粘贴到 ChatGPT 自定义指令或 Claude Project 知识库，新对话不用再解释背景。</p>
+  <pre class="code">## 支付上线 · 上下文（自动更新于 今天 10:42）
+- 目标：10 月 1 日前支持付费订阅
+- 方案：Stripe Checkout（不自建表单），支持支付宝/微信支付
+- 后端：Alice · /api/checkout-session；webhook 按 event.id 幂等
+- 前端：Bob · 结算页 + /success /cancel 回跳
+- 未决：免费版人数上限（3 或 5 人）</pre>`;
+}
+
+function renderDigest(){
+  $("#main").innerHTML = `<div class="head"><div><h1>今日简报</h1><p>每天 18:00 自动推送到 Slack #daily，代替站会。</p></div><button class="btn" id="sendDigest">立即推送到 Slack</button></div>
+  <article class="digest">
+    <div><div class="meta">9 月 23 日 · 周三 · 由 38 个 AI 会话生成</div><h2>今天团队推进了支付上线，定价方案待拍板</h2></div>
+    <div class="kpis">
+      <div class="kpi"><b>4</b><span>新决策</span></div>
+      <div class="kpi"><b>6</b><span>新任务</span></div>
+      <div class="kpi"><b>2</b><span>待定问题</span></div>
+      <div class="kpi"><b>1</b><span>冲突待解决</span></div>
+    </div>
+    <div class="dg"><h3><span class="dot" style="background:${P.pay.color}"></span>支付上线</h3><ul>
+      <li>确定用 Stripe Checkout，不自建表单（Alice）</li><li>webhook 幂等方案已合并（陈晨）</li><li>结算页开发中，周五交付（Bob）</li></ul></div>
+    <div class="dg"><h3><span class="dot" style="background:${P.price.color}"></span>定价策略</h3><ul>
+      <li>竞品均价 $14/人/月，全部按席位（小林）</li><li><b>冲突</b>：陈晨草案 $12 vs 小林建议 $15+，需要讨论</li></ul></div>
+    <div class="dg"><h3><span class="dot" style="background:${P.site.color}"></span>官网改版</h3><ul>
+      <li>首屏两个方向已出稿，<b>等陈晨决定</b>（阻塞 Maya）</li></ul></div>
+    <div class="dg"><h3>明日提醒</h3><ul>
+      <li>Bob 与 Maya 在做重复的埋点方案，建议合并</li><li>周四：定价页文案交给 Maya</li></ul></div>
+  </article>`;
+}
+
+function render(){
+  renderSide(); renderRail();
+  ({feed:renderFeed,inbox:renderInbox,memory:renderMemory,digest:renderDigest})[view]();
+}
+
+document.addEventListener("click",e=>{
+  const t=e.target.closest("button"); if(!t) return;
+  if(t.dataset.view){view=t.dataset.view; if(view!=="feed") projFilter=null; render(); window.scrollTo({top:0}); return;}
+  if(t.dataset.proj!==undefined){projFilter=t.dataset.proj||null; view="feed"; render(); return;}
+  if(t.dataset.type){typeFilter=t.dataset.type; renderFeed(); return;}
+  if(t.dataset.quote){const q=$("#q-"+t.dataset.quote); q.hidden=!q.hidden; t.textContent=q.hidden?"查看来源片段":"收起"; return;}
+  if(t.dataset.reuse){toast("已复制为上下文，可粘贴到任意 AI 对话"); return;}
+  if(t.dataset.sess){selSession=t.dataset.sess; renderInbox(); return;}
+  if(t.dataset.inbox){
+    const i=inboxData.findIndex(x=>x.id===selSession), s=inboxData[i];
+    const proj=$("#projSel").value||null;
+    if(t.dataset.inbox==="publish"){
+      const picked=[...document.querySelectorAll("[data-item]")].filter(x=>x.checked).map(x=>s.items[+x.dataset.item]);
+      if(!picked.length){toast("先勾选至少一条要发布的内容");return;}
+      picked.slice().reverse().forEach(it=>cards.unshift({id:Date.now()+Math.random(),type:it.type,who:"me",src:s.src,proj,time:"刚刚",
+        title:it.title.replace(/<mark>.*?<\/mark>/g,"[已打码]"),body:"",quote:["陈晨 → "+s.src,s.summary],fresh:true}));
+      toast(`已发布 ${picked.length} 条到团队动态`);
+    } else toast(t.dataset.inbox==="private"?"已保存，仅你自己可见":"已丢弃");
+    inboxData.splice(i,1); render(); return;
+  }
+  if(t.dataset.alert!==undefined){
+    const i=+t.dataset.alert; const act=t.dataset.act;
+    if(act.startsWith("查看")){toast("在新面板中对比两边的原始片段");return;}
+    if(act==="去回答"){view="feed";typeFilter="question";alerts.splice(i,1);render();return;}
+    alerts.splice(i,1); renderRail(); toast(act==="发起讨论"?"已在 #pricing 创建讨论，并 @ 小林":"已通知 Bob，附上 Maya 的结论"); return;
+  }
+  if(t.dataset.sug){$("#askInput").value=t.dataset.sug; toast("原型中仅演示一个示例回答"); return;}
+  if(t.id==="copyMcp"){
+    const txt=$("#mcpCode").textContent;
+    try{navigator.clipboard.writeText(txt).then(()=>toast("已复制 MCP 配置"),()=>toast("复制失败，请手动选中复制"));}catch(err){toast("复制失败，请手动选中复制");}
+    return;
+  }
+  if(t.id==="sendDigest"){toast("已推送到 Slack #daily");return;}
+});
+document.addEventListener("submit",e=>{e.preventDefault();toast("原型中仅演示一个示例回答")});
+
+render();
+</script>
