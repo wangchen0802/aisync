@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "SimReal Sync",
+  "description": "把你和 ChatGPT、Claude、DeepSeek、Gemini、Grok 等 AI 的对话一键同步给团队，并把团队共识插回对话。",
+  "version": "0.1.0",
+  "action": { "default_popup": "popup.html", "default_title": "SimReal Sync" },
+  "background": { "service_worker": "background.js" },
+  "permissions": ["storage", "activeTab"],
+  "commands": {
+    "sync-current": {
+      "suggested_key": { "default": "Alt+Shift+S" },
+      "description": "同步当前 AI 对话到 SimReal"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*", "https://chat.openai.com/*", "https://claude.ai/*", "https://chat.deepseek.com/*",
+        "https://gemini.google.com/*", "https://grok.com/*", "https://x.com/i/grok*", "https://www.perplexity.ai/*",
+        "https://kimi.moonshot.cn/*", "https://www.kimi.com/*", "https://www.doubao.com/*", "https://tongyi.aliyun.com/*",
+        "https://www.tongyi.com/*", "https://chat.qwen.ai/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": { "128": "icon128.png" }
+}

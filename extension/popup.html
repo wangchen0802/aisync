@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  body{margin:0;width:320px;font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;color:#0B0B0F;background:#FAFAFA}
+  header{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid #E7E7EA;background:#fff}
+  header b{font-size:14px}
+  .dot{width:8px;height:8px;border-radius:50%;background:#A1A1AA;margin-left:auto}
+  .dot.ok{background:#18794E}.dot.bad{background:#CD2B31}
+  main{padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+  label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:#71717A}
+  input{font:inherit;padding:7px 9px;border:1px solid #E7E7EA;border-radius:8px;background:#fff;color:#0B0B0F}
+  input:focus{outline:none;border-color:#3E63DD;box-shadow:0 0 0 3px #EDF2FE}
+  .row{display:flex;gap:8px}
+  button{font:inherit;font-weight:500;border:1px solid #E7E7EA;background:#fff;border-radius:8px;padding:7px 10px;cursor:pointer;flex:1}
+  button.pri{background:#0B0B0F;color:#fff;border-color:#0B0B0F}
+  #status{font-size:12px;color:#71717A;min-height:18px}
+  .hint{font-size:11.5px;color:#71717A;margin:0}
+  kbd{font:11px ui-monospace,monospace;border:1px solid #E7E7EA;border-radius:4px;padding:0 4px;background:#F4F4F5}
+</style>
+</head>
+<body>
+<header>
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="6" fill="#0B0B0F"/><rect x="5" y="5" width="9" height="9" rx="2.5" fill="#fff"/><rect x="10" y="10" width="9" height="9" rx="2.5" stroke="#fff" stroke-width="1.8"/></svg>
+  <b>SimReal Sync</b><span class="dot" id="dot"></span>
+</header>
+<main>
+  <label>SimReal 地址<input id="url" placeholder="https://simreal-sync.vercel.app"></label>
+  <label>个人密钥<input id="token" type="password" placeholder="sr_..."></label>
+  <div class="row"><button id="save">保存并测试</button><button id="open">打开 SimReal</button></div>
+  <div id="status"></div>
+  <p class="hint">在 ChatGPT、Claude、DeepSeek、Gemini、Grok 等页面右下角点「同步到团队」，或按 <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>。选中一段文字时只同步选中的部分。</p>
+</main>
+<script src="config.js"></script>
+<script src="popup.js"></script>
+</body>
+</html>

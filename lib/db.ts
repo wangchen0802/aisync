@@ -1,0 +1,155 @@
+import { Pool, types, type QueryResultRow } from "pg";
+
+// Return timestamps as ISO strings so they serialize cleanly to client components.
+types.setTypeParser(1184, (v) => new Date(v).toISOString());
+types.setTypeParser(1114, (v) => new Date(v + "Z").toISOString());
+
+const SCHEMA = `
+select pg_advisory_xact_lock(727201);
+create table if not exists users (
+  id serial primary key,
+  email text unique not null,
+  name text,
+  image text,
+  role text not null default 'member',
+  api_token text unique,
+  invited boolean not null default false,
+  last_ingest_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create table if not exists projects (
+  id serial primary key,
+  name text not null,
+  color text not null default '#3E63DD',
+  description text not null default '',
+  archived boolean not null default false,
+  created_at timestamptz not null default now()
+);
+create table if not exists conversations (
+  id serial primary key,
+  user_id int references users(id) on delete cascade,
+  source text not null default 'other',
+  title text not null default '',
+  url text,
+  raw_text text not null default '',
+  summary text not null default '',
+  status text not null default 'pending',
+  project_id int references projects(id) on delete set null,
+  engine text not null default 'ai',
+  sensitive boolean not null default false,
+  created_at timestamptz not null default now()
+);
+create table if not exists items (
+  id serial primary key,
+  kind text not null,
+  title text not null,
+  body text not null default '',
+  details jsonb not null default '{}'::jsonb,
+  status text not null,
+  visibility text not null default 'team',
+  owner_id int references users(id) on delete set null,
+  assignee_id int references users(id) on delete set null,
+  project_id int references projects(id) on delete set null,
+  conversation_id int references conversations(id) on delete set null,
+  source text not null default 'manual',
+  due text,
+  subtasks jsonb not null default '[]'::jsonb,
+  conflict_with int,
+  superseded_by int,
+  blocked_by int,
+  duplicate_of int,
+  last_update text,
+  last_update_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists items_kind_vis_idx on items(kind, visibility);
+create index if not exists items_conv_idx on items(conversation_id);
+create table if not exists acks (
+  item_id int references items(id) on delete cascade,
+  user_id int references users(id) on delete cascade,
+  verdict text not null,
+  comment text,
+  created_at timestamptz not null default now(),
+  primary key (item_id, user_id)
+);
+create table if not exists events (
+  id serial primary key,
+  user_id int references users(id) on delete set null,
+  type text not null,
+  item_id int references items(id) on delete cascade,
+  conversation_id int references conversations(id) on delete cascade,
+  text text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists events_created_idx on events(created_at desc);
+create table if not exists settings (
+  key text primary key,
+  value text not null
+);
+`;
+
+const g = globalThis as unknown as { __simrealPool?: Pool; __simrealSchema?: Promise<void> };
+
+function pool(): Pool {
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL 未配置。请在 Vercel 项目里连接一个 Postgres 数据库（Storage → Neon）。");
+  }
+  if (!g.__simrealPool) {
+    g.__simrealPool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5, idleTimeoutMillis: 10_000 });
+  }
+  return g.__simrealPool;
+}
+
+function ensureSchema(): Promise<void> {
+  if (!g.__simrealSchema) {
+    g.__simrealSchema = pool()
+      .query(SCHEMA)
+      .then(() => undefined)
+      .catch((e) => {
+        g.__simrealSchema = undefined;
+        throw e;
+      });
+  }
+  return g.__simrealSchema;
+}
+
+export async function q<T extends QueryResultRow = QueryResultRow>(text: string, params: unknown[] = []): Promise<T[]> {
+  await ensureSchema();
+  try {
+    return (await pool().query<T>(text, params)).rows;
+  } catch (e) {
+    // Tables vanished (e.g. database reset while the server was warm): recreate once and retry.
+    if ((e as { code?: string }).code !== "42P01") throw e;
+    g.__simrealSchema = undefined;
+    await ensureSchema();
+    return (await pool().query<T>(text, params)).rows;
+  }
+}
+
+export async function one<T extends QueryResultRow = QueryResultRow>(text: string, params: unknown[] = []): Promise<T | null> {
+  const rows = await q<T>(text, params);
+  return rows[0] ?? null;
+}
+
+/** Runs fn inside a transaction on a dedicated client. */
+export async function tx<T>(fn: (run: typeof q) => Promise<T>): Promise<T> {
+  await ensureSchema();
+  const client = await pool().connect();
+  const run = (async (text: string, params: unknown[] = []) => (await client.query(text, params)).rows) as typeof q;
+  try {
+    await client.query("begin");
+    const out = await fn(run);
+    await client.query("commit");
+    return out;
+  } catch (e) {
+    await client.query("rollback");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+export function dbConfigured() {
+  return Boolean(process.env.DATABASE_URL);
+}
