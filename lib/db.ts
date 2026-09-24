@@ -168,14 +168,17 @@ create table if not exists touches (
 create index if not exists touches_contact_idx on touches(contact_id, created_at desc);
 `;
 
+/** Vercel's Neon integration names the variable after the chosen prefix; accept the common ones. */
+const dbUrl = () => process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.STORAGE_URL || process.env.NEON_DATABASE_URL || "";
+
 const g = globalThis as unknown as { __simrealPool?: Pool; __simrealSchema?: Promise<void> };
 
 function pool(): Pool {
-  if (!process.env.DATABASE_URL) {
+  if (!dbUrl()) {
     throw new Error("DATABASE_URL 未配置。请在 Vercel 项目里连接一个 Postgres 数据库（Storage → Neon）。");
   }
   if (!g.__simrealPool) {
-    g.__simrealPool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5, idleTimeoutMillis: 10_000 });
+    g.__simrealPool = new Pool({ connectionString: dbUrl(), max: 5, idleTimeoutMillis: 10_000 });
   }
   return g.__simrealPool;
 }
@@ -230,5 +233,5 @@ export async function tx<T>(fn: (run: typeof q) => Promise<T>): Promise<T> {
 }
 
 export function dbConfigured() {
-  return Boolean(process.env.DATABASE_URL);
+  return Boolean(dbUrl());
 }
