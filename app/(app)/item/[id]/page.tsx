@@ -113,8 +113,8 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
         {item.kind === "question" && item.status === "open" ? <div><ActionButton className="btn" action={resolveQuestion.bind(null, item.id)}>标记已解决</ActionButton></div> : null}
 
         <div className="row" style={{ borderTop: "1px solid var(--line)", paddingTop: 12 }}>
-          <CopyButton className="btn sm" label="引用到我的 AI" text={`[团队${KIND_LABEL[item.kind as Kind]} ${ref}] ${item.title}${item.body ? `。${item.body}` : ""}`} done="已复制，可以粘贴到任何 AI 对话里" />
-          <CopyButton className="btn sm" label="复制链接" text={`${ref} ${item.title}\n${link}`} done="链接已复制，可以发给队友" />
+          <CopyButton className="btn sm" label="复制给 AI" text={`[团队${KIND_LABEL[item.kind as Kind]} ${ref}] ${item.title}${item.body ? `。${item.body}` : ""}`} done="已复制" />
+          <CopyButton className="btn sm" label="复制链接" text={`${ref} ${item.title}\n${link}`} done="已复制" />
           <EditableText id={item.id} title={item.title} body={item.body} />
           <span className="grow" />
           {canForce ? <ActionButton className="btn sm ghost danger" confirm="删除这条记录？" action={deleteItem.bind(null, item.id)}><Icon name="trash" />删除</ActionButton> : null}
@@ -145,7 +145,7 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
               </div>
             </div>
           ))}
-          {!comments.length ? <p className="muted" style={{ margin: 0, fontSize: 12.5 }}>还没有讨论。有疑问、补充或者反对意见，写在这里，大家都能看到。</p> : null}
+          {!comments.length ? <p className="muted" style={{ margin: 0, fontSize: 12.5 }}>暂无讨论</p> : null}
         </div>
         <div className="pad" style={{ borderTop: "1px solid var(--line)" }}><CommentForm itemId={item.id} /></div>
       </section>

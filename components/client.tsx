@@ -156,7 +156,7 @@ export function ObjectButton({ id }: { id: number }) {
   if (!open) return <button className="btn sm" onClick={() => setOpen(true)}>提出异议</button>;
   return (
     <span className="row" style={{ flex: "1 1 100%" }}>
-      <input className="input sm grow" autoFocus placeholder="说说你的顾虑（会通知创建者）" value={text} onChange={(e) => setText(e.target.value)} style={{ minWidth: 200 }}
+      <input className="input sm grow" autoFocus placeholder="原因" value={text} onChange={(e) => setText(e.target.value)} style={{ minWidth: 200 }}
         onKeyDown={(e) => e.key === "Escape" && setOpen(false)} />
       <button className="btn sm pri" disabled={pending || !text.trim()} onClick={() => start(async () => { report(await objectAction(id, text)); setOpen(false); setText(""); })}>
         {pending ? <span className="spin" /> : null}提交
@@ -330,7 +330,7 @@ export function CommandPalette() {
         <div className="pal-i">
           <Icon name="search" style={{ color: "var(--muted)" }} />
           <input
-            autoFocus placeholder="搜索共识、任务，或输入问题…" value={q}
+            autoFocus placeholder="搜索或提问" value={q}
             onChange={(e) => { setQ(e.target.value); setSel(0); }}
             onKeyDown={(e) => {
               if (e.key === "Escape") setOpen(false);
@@ -361,7 +361,7 @@ export function CommandPalette() {
 export function OpenPalette() {
   return (
     <button className="search-btn" onClick={() => window.dispatchEvent(new Event("simreal:palette"))}>
-      <Icon name="search" /><span>搜索或跳转…</span><kbd>⌘K</kbd>
+      <Icon name="search" /><span>搜索</span><kbd>⌘K</kbd>
     </button>
   );
 }

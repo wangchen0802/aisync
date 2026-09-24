@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const me = await requireUser();
-  const [counts] = await q<{ inbox: number; attention: number; open_tasks: number; members: number; due_soon: number }>(
+  const [[counts], projects, ws, base, baseSaved, allMembers, jar] = await Promise.all([q<{ inbox: number; attention: number; open_tasks: number; members: number; due_soon: number }>(
     `select
        (select count(*)::int from conversations where user_id = $1 and status = 'pending') as inbox,
        (select count(*)::int from items i where i.kind = 'decision' and i.visibility = 'team'
@@ -24,21 +24,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
        (select count(*)::int from items where kind = 'task' and visibility = 'team' and status <> 'done' and assignee_id = $1
           and due_date is not null and due_date <= (now() at time zone 'Asia/Shanghai')::date + 2) as due_soon`,
     [me.id],
-  );
-  const projects = await q<{ id: number; name: string; color: string; done: number; total: number }>(
+  ), q<{ id: number; name: string; color: string; done: number; total: number }>(
     `select p.id, p.name, p.color,
        coalesce(sum(case when jsonb_array_length(i.subtasks) = 0 then (i.status = 'done')::int
                          else (select count(*) from jsonb_array_elements(i.subtasks) s where (s->>'done')::boolean) end), 0)::int as done,
        coalesce(sum(greatest(jsonb_array_length(i.subtasks), 1)) filter (where i.id is not null), 0)::int as total
      from projects p left join items i on i.project_id = p.id and i.kind = 'task' and i.visibility = 'team'
      where not p.archived group by p.id order by p.created_at`,
-  );
-  const ws = await getSetting("workspace_name", "SimReal");
+  ), getSetting("workspace_name", "SimReal"), origin(), getSetting("base_url", ""), listMembers(), cookies()]);
   // Remember the public URL so notifications can link back into the app.
-  const base = await origin();
-  if (!base.includes("localhost") && (await getSetting("base_url", "")) !== base) await setSetting("base_url", base);
-  const members = (await listMembers()).filter((m) => !m.invited || m.id === me.id).map((m) => ({ id: m.id, name: m.name }));
-  const detail = (await cookies()).get("detail")?.value ?? "std";
+  if (!base.includes("localhost") && baseSaved !== base) await setSetting("base_url", base);
+  const members = allMembers.filter((m) => !m.invited || m.id === me.id).map((m) => ({ id: m.id, name: m.name }));
+  const detail = jar.get("detail")?.value ?? "std";
 
   return (
     <div className="shell" data-detail={["lite", "std", "full"].includes(detail) ? detail : "std"}>

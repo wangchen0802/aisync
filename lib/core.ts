@@ -46,6 +46,12 @@ export async function getItem(id: number) {
   return one<ItemRow>(`${ITEM_SELECT} where i.id = $1`, [id]);
 }
 
+/** Throws unless the item exists and is visible to the actor (team, or their own private/draft). */
+export async function assertVisible(actorId: number, id: number) {
+  const row = await one<{ visibility: string; owner_id: number | null }>("select visibility, owner_id from items where id = $1", [id]);
+  if (!row || (row.visibility !== "team" && row.owner_id !== actorId)) throw new Error("找不到条目");
+}
+
 export async function logEvent(userId: number | null, type: string, text: string, itemId?: number | null, conversationId?: number | null) {
   await q("insert into events (user_id, type, item_id, conversation_id, text) values ($1, $2, $3, $4, $5)", [userId, type, itemId ?? null, conversationId ?? null, text]);
 }
@@ -372,6 +378,7 @@ export async function confirmDecision(itemId: number, actor: Actor) {
 }
 
 export async function ack(actor: Actor, itemId: number, verdict: "agree" | "object", comment?: string) {
+  await assertVisible(actor.id, itemId);
   await q(
     `insert into acks (item_id, user_id, verdict, comment) values ($1, $2, $3, $4)
      on conflict (item_id, user_id) do update set verdict = excluded.verdict, comment = excluded.comment, created_at = now()`,
@@ -383,6 +390,7 @@ export async function ack(actor: Actor, itemId: number, verdict: "agree" | "obje
 }
 
 export async function resolveConflict(actor: Actor, itemId: number, keep: "this" | "other") {
+  await assertVisible(actor.id, itemId);
   const item = await getItem(itemId);
   if (!item?.conflict_with) return;
   const other = item.conflict_with;
@@ -431,6 +439,7 @@ export async function createItem(actor: Actor, input: NewItem) {
 
 export async function moveTask(actor: Actor, taskId: number, status: string) {
   if (!(status in TASK_STATUS)) throw new Error("无效状态");
+  await assertVisible(actor.id, taskId);
   const task = await one<{ subtasks: Subtask[] }>("select subtasks from items where id = $1 and kind = 'task'", [taskId]);
   if (!task) throw new Error("找不到任务");
   const subtasks = status === "done" ? task.subtasks.map((s) => ({ ...s, done: true })) : task.subtasks;
@@ -444,6 +453,7 @@ export async function moveTask(actor: Actor, taskId: number, status: string) {
 }
 
 export async function setSubtasks(actor: Actor, taskId: number, subtasks: Subtask[]) {
+  await assertVisible(actor.id, taskId);
   const row = await one<{ status: string }>("select status from items where id = $1 and kind = 'task'", [taskId]);
   if (!row) throw new Error("找不到任务");
   let status = row.status;
@@ -465,6 +475,7 @@ export async function deleteItem(actor: Actor, itemId: number) {
 export type ItemPatch = { title?: string; body?: string; dueDate?: string | null; assigneeId?: number | null; projectId?: number | null; goalId?: number | null };
 
 export async function editItem(actor: Actor, itemId: number, patch: ItemPatch) {
+  await assertVisible(actor.id, itemId);
   const item = await one<{ owner_id: number; kind: string; title: string; assignee_id: number | null }>("select owner_id, kind, title, assignee_id from items where id = $1", [itemId]);
   if (!item) throw new Error("找不到条目");
   const has = (k: keyof ItemPatch) => patch[k] !== undefined;
@@ -691,8 +702,7 @@ export async function listComments(itemId: number) {
 export async function addComment(actor: Actor, itemId: number, body: string) {
   const text = body.trim().slice(0, 2000);
   if (!text) throw new Error("评论不能为空");
-  const item = await getItem(itemId);
-  if (!item) throw new Error("找不到条目");
+  await assertVisible(actor.id, itemId);
   await q("insert into comments (item_id, user_id, body) values ($1, $2, $3)", [itemId, actor.id, text]);
   await q("update items set updated_at = now() where id = $1", [itemId]);
   await logEvent(actor.id, "comment", text, itemId);

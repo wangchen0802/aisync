@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/session";
 import { q } from "@/lib/db";
-import { ackThreshold, goalPct, listGoals, listItems, listMembers, listProjects, sinceLastVisit } from "@/lib/core";
+import { goalPct, getSetting, listGoals, listItems, listMembers, listProjects, sinceLastVisit } from "@/lib/core";
 import { agree, resolveConflict } from "@/lib/actions";
-import { addDays, ago, code, progressOf, SOURCES, sourceOf, TASK_STATUS, todayISO, weekStart } from "@/lib/meta";
-import { ActionButton, NewItemButton } from "@/components/client";
-import { DecisionRow } from "@/components/items";
-import { Avatar, DueChip, Icon, Proj, Progress, Source, Spark } from "@/components/ui";
+import { addDays, ago, code, progressOf, todayISO, weekStart } from "@/lib/meta";
+import { ActionButton } from "@/components/client";
+import { Avatar, DueChip, Icon, Progress, Source } from "@/components/ui";
 
 export const metadata = { title: "总览" };
 
@@ -15,281 +14,216 @@ function greet() {
   return h < 6 ? "夜深了" : h < 12 ? "早上好" : h < 18 ? "下午好" : "晚上好";
 }
 
-export default async function Overview() {
+type Change = { id: number; type: string; text: string; created_at: string; user_id: number; name: string; item_id: number | null; kind: string | null; title: string | null; conv_title: string | null };
+
+export default async function Home() {
   const me = await requireUser();
   const today = todayISO();
-  const [items, projects, members, threshold, since, goals] = await Promise.all([listItems(me.id, { limit: 500 }), listProjects(), listMembers(), ackThreshold(), sinceLastVisit(me.id), listGoals(me.id, weekStart(today))]);
-  const teamGoals = goals.filter((g) => g.scope === "team");
-  const myGoals = goals.filter((g) => g.scope === "personal" && g.owner_id === me.id);
-  const changes = await q<{ id: number; type: string; text: string; created_at: string; user_id: number; name: string; item_id: number | null; kind: string | null; title: string | null; conv_title: string | null }>(
+  const [items, projects, members, since, goals, brief] = await Promise.all([
+    listItems(me.id, { limit: 600 }), listProjects(), listMembers(), sinceLastVisit(me.id), listGoals(me.id, weekStart(today)), getSetting("team_brief", ""),
+  ]);
+  const changes = await q<Change>(
     `select e.id, e.type, e.text, e.created_at, e.user_id, u.name, e.item_id, i.kind, i.title, c.title as conv_title
      from events e join users u on u.id = e.user_id left join items i on i.id = e.item_id left join conversations c on c.id = e.conversation_id
-     where e.created_at > $1 and e.user_id <> $2 and e.type in ('publish', 'confirm', 'conflict', 'comment', 'task_progress', 'create', 'object')
+     where e.created_at > $1 and e.user_id <> $2 and e.type in ('publish', 'confirm', 'conflict', 'comment', 'task_progress', 'create', 'object', 'goal')
        and (i.id is null or i.visibility = 'team')
-     order by e.created_at desc limit 40`,
+     order by e.created_at desc limit 30`,
     [since, me.id],
   );
-  const changeCount = (t: string[]) => changes.filter((c) => t.includes(c.type)).length;
+
   const decisions = items.filter((i) => i.kind === "decision");
   const tasks = items.filter((i) => i.kind === "task");
-
-  const [daily] = await q<{ d: number[]; t: number[]; c: number[] }>(
-    `with days as (select generate_series(current_date - 6, current_date, interval '1 day')::date as day)
-     select array_agg((select count(*)::int from items i where i.kind = 'decision' and i.status = 'confirmed' and i.visibility = 'team' and i.updated_at::date = days.day) order by day) as d,
-            array_agg((select count(*)::int from events e where e.type in ('task_progress', 'task_move') and e.created_at::date = days.day) order by day) as t,
-            array_agg((select count(*)::int from conversations c where c.created_at::date = days.day) order by day) as c
-     from days`,
-  );
-  const usage = await q<{ source: string; n: number }>(
-    "select source, count(*)::int as n from conversations where created_at > now() - interval '7 days' group by source order by n desc",
-  );
-  const [day] = await q<{ convs: number; sources: number }>(
-    "select count(*)::int as convs, count(distinct source)::int as sources from conversations where created_at > now() - interval '24 hours'",
-  );
-  const weekConfirmed = decisions.filter((d) => d.status === "confirmed" && d.updated_at > new Date(Date.now() - 7 * 864e5).toISOString()).length;
-  const doing = tasks.filter((t) => t.status === "doing").length;
-  const pending = decisions.filter((d) => d.status === "discussing" || d.status === "conflict").length;
-  const blocked = tasks.filter((t) => t.status === "blocked");
-
+  const byId = new Map(items.map((i) => [i.id, i]));
   const conflicts = decisions.filter((d) => d.status === "conflict");
   const awaiting = decisions.filter((d) => d.status === "discussing" && !d.acks.some((a) => a.user_id === me.id));
-  const myBlocked = blocked.filter((t) => t.assignee_id === me.id);
-  const dups = tasks.filter((t) => t.duplicate_of && t.status !== "done" && (t.assignee_id === me.id || t.owner_id === me.id));
-  const byId = new Map(items.map((i) => [i.id, i]));
-  const attentionCount = conflicts.length + awaiting.length + myBlocked.length + dups.length;
+  const mine = tasks.filter((t) => t.assignee_id === me.id && t.status !== "done");
+  const urgent = mine.filter((t) => t.due_date && t.due_date <= today).sort((a, b) => (a.due_date! < b.due_date! ? -1 : 1));
+  const blocked = mine.filter((t) => t.status === "blocked" && !urgent.includes(t));
+  const dups = mine.filter((t) => t.duplicate_of);
+  const todo = conflicts.length + awaiting.length + urgent.length + blocked.length + dups.length;
+  const upcoming = mine.filter((t) => t.due_date && t.due_date > today && t.due_date <= addDays(today, 7)).sort((a, b) => (a.due_date! < b.due_date! ? -1 : 1));
+  const teamGoals = goals.filter((g) => g.scope === "team");
+  const myGoals = goals.filter((g) => g.scope === "personal" && g.owner_id === me.id);
 
-  const inboxCount = (await q<{ c: number }>("select count(*)::int as c from conversations where user_id = $1 and status = 'pending'", [me.id]))[0].c;
-  const steps = [
-    { ok: projects.length > 0, t: "创建项目", d: "把工作按项目分组，AI 会自动归类。", href: "/settings#projects", cta: "创建项目" },
-    { ok: items.length > 0 || inboxCount > 0, t: "导入第一段对话", d: "粘贴任意 AI 对话，自动提炼共识和任务。", href: "/import", cta: "导入对话" },
-    { ok: members.some((m) => m.id === me.id && m.last_ingest_at), t: "安装浏览器插件", d: "在 ChatGPT、Claude、DeepSeek 等页面一键同步。", href: "/connect", cta: "去安装" },
-    { ok: members.length > 1, t: "邀请队友", d: "共识需要队友确认才算数。", href: "/settings#members", cta: "邀请" },
+  const setup = [
+    { ok: projects.length > 0, t: "建项目", href: "/settings#projects" },
+    { ok: brief.trim().length > 0, t: "写团队档案", href: "/memory" },
+    { ok: members.some((m) => m.id === me.id && m.last_ingest_at), t: "连接你的 AI", href: "/connect" },
+    { ok: members.filter((m) => !m.invited).length > 1, t: "邀请队友", href: "/settings#members" },
   ];
-  const onboarding = steps.some((s) => !s.ok);
-  const maxUsage = Math.max(1, ...usage.map((u) => u.n));
-
   const projRows = projects.map((p) => {
     const ts = tasks.filter((t) => t.project_id === p.id);
     let d = 0, n = 0;
     for (const t of ts) { const pr = progressOf(t.status, t.subtasks); d += pr.done; n += pr.total; }
-    return { ...p, pct: n ? Math.round((d / n) * 100) : 0, done: ts.filter((t) => t.status === "done").length, total: ts.length, blocked: ts.some((t) => t.status === "blocked") };
+    return { ...p, pct: n ? Math.round((d / n) * 100) : 0, open: ts.filter((t) => t.status !== "done").length, late: ts.some((t) => t.status !== "done" && t.due_date && t.due_date < today) };
   });
+
+  const line = (c: Change) => {
+    const it = c.item_id ? <Link className="link" href={`/item/${c.item_id}`}>{c.title}</Link> : null;
+    switch (c.type) {
+      case "publish": return <>同步了「{c.conv_title}」</>;
+      case "confirm": return <>{it} 达成共识</>;
+      case "conflict": return <span style={{ color: "var(--red)" }}>{c.text}</span>;
+      case "comment": case "object": return <>评论 {it}：<span className="muted">{c.text.slice(0, 50)}</span></>;
+      case "task_progress": return <>{it}：<span className="muted">{c.text}</span></>;
+      case "goal": return <>{c.text}</>;
+      default: return <>新建 {it ?? c.text}</>;
+    }
+  };
 
   return (
     <>
       <div className="ph">
         <div>
           <h1>{greet()}，{me.name}</h1>
-          <p>
-            {day.convs
-              ? `过去 24 小时，团队在 ${day.sources} 个 AI 工具里同步了 ${day.convs} 段对话。`
-              : "过去 24 小时还没有新的 AI 对话同步进来。"}
-            {attentionCount ? ` 有 ${attentionCount} 件事需要你处理。` : ""}
+          <p className="ph-meta">
+            <span className={todo ? "hot" : ""}>{todo ? `${todo} 件待处理` : "没有待处理"}</span>
+            {upcoming.length ? <span>{upcoming.length} 个任务 7 天内到期</span> : null}
+            {changes.length ? <span>{changes.length} 条新动态</span> : null}
           </p>
         </div>
-        <div className="row">
-          <NewItemButton kind="decision" label="记录决策" className="btn" projects={projects} members={members} />
-          <Link className="btn" href="/digest"><Icon name="news" />今日简报</Link>
-        </div>
       </div>
 
-      {onboarding ? (
-        <section className="box onboard">
-          <div className="box-h"><h2>开始使用 SimReal Sync <span className="c">{steps.filter((s) => s.ok).length}/{steps.length}</span></h2></div>
-          <div className="steps">
-            {steps.map((s, i) => (
-              <div key={s.t} className={`step${s.ok ? " ok" : ""}`}>
-                <span className="ck">{s.ok ? "✓" : i + 1}</span>
-                <b>{s.t}</b>
-                <p>{s.d}</p>
-                {s.ok ? <span className="muted" style={{ fontSize: 12 }}>已完成</span> : <Link className="link" href={s.href}>{s.cta} <Icon name="arrow" className="i sm" /></Link>}
-              </div>
-            ))}
-          </div>
+      {setup.some((s) => !s.ok) ? (
+        <section className="setup">
+          <b>开始使用</b>
+          {setup.map((s, i) => (
+            <Link key={s.t} href={s.href} className={`setup-step${s.ok ? " ok" : ""}`}>
+              <span className="ck">{s.ok ? <Icon name="check" className="i sm" /> : i + 1}</span>{s.t}
+            </Link>
+          ))}
         </section>
       ) : null}
-
-      {changes.length ? (
-        <section className="box since">
-          <div className="box-h">
-            <h2><Icon name="bolt" />自你上次查看 <span className="c">{ago(since)}</span></h2>
-            <span className="muted" style={{ fontSize: 12 }}>
-              {[
-                changeCount(["confirm"]) ? `${changeCount(["confirm"])} 项达成共识` : "",
-                changeCount(["publish", "create"]) ? `${changeCount(["publish", "create"])} 条新内容` : "",
-                changeCount(["task_progress"]) ? `${changeCount(["task_progress"])} 次任务进展` : "",
-                changeCount(["comment", "object"]) ? `${changeCount(["comment", "object"])} 条讨论` : "",
-              ].filter(Boolean).join(" · ")}
-            </span>
-          </div>
-          <ul className="since-list">
-            {changes.slice(0, 6).map((c) => (
-              <li key={c.id}>
-                <Avatar id={c.user_id} name={c.name} />
-                <span className="since-t">
-                  <b>{c.name}</b>{" "}
-                  {c.type === "publish" ? <>同步了「{c.conv_title}」</>
-                    : c.type === "confirm" ? <>让 {c.item_id ? <Link className="link" href={`/item/${c.item_id}`}>{code(c.kind ?? "decision", c.item_id)}</Link> : null} 达成共识：{c.title}</>
-                    : c.type === "conflict" ? <span style={{ color: "var(--red)" }}>发现冲突：{c.text}</span>
-                    : c.type === "comment" || c.type === "object" ? <>评论了 {c.item_id ? <Link className="link" href={`/item/${c.item_id}#discuss`}>{c.title}</Link> : null}：<span className="muted">{c.text.slice(0, 60)}</span></>
-                    : c.type === "task_progress" ? <>推进了 {c.item_id ? <Link className="link" href={`/item/${c.item_id}`}>{c.title}</Link> : null}：<span className="muted">{c.text}</span></>
-                    : <>新建了 {c.item_id ? <Link className="link" href={`/item/${c.item_id}`}>{c.title}</Link> : c.text}</>}
-                </span>
-                <span className="muted since-ago">{ago(c.created_at)}</span>
-              </li>
-            ))}
-          </ul>
-          {changes.length > 6 ? <div className="pad" style={{ paddingTop: 0 }}><Link className="link" href="/activity">查看全部 {changes.length} 条动态 <Icon name="arrow" className="i sm" /></Link></div> : null}
-        </section>
-      ) : null}
-
-      <div className="stats home-stats">
-        <div className="box st"><span className="l"><Icon name="cons" />本周新共识</span><span className="v">{weekConfirmed}</span><Spark values={daily.d} color="var(--green)" /><span className="d">共 {decisions.filter((d) => d.status === "confirmed").length} 条已确认</span></div>
-        <div className="box st"><span className="l"><Icon name="task" />进行中任务</span><span className="v">{doing}</span><Spark values={daily.t} color="var(--accent)" /><span className="d">{tasks.filter((t) => t.status === "done").length} 个已完成</span></div>
-        <div className="box st"><span className="l"><Icon name="alert" />待确认 / 冲突</span><span className="v">{pending}</span><Spark values={daily.c} color="var(--amber)" /><span className="d">{conflicts.length ? <b style={{ color: "var(--red)", fontWeight: 500 }}>{conflicts.length} 处冲突</b> : `需要 ${threshold} 人确认`}</span></div>
-        <div className="box st"><span className="l"><Icon name="clock" />阻塞任务</span><span className="v">{blocked.length}</span><Spark values={[0, 0, 0, 0, 0, 0, blocked.length]} color="var(--red)" /><span className="d">{blocked.length ? "依赖未确认的决策" : "没有阻塞"}</span></div>
-      </div>
 
       <div className="ov">
         <div className="col">
           <section className="box">
-            <div className="box-h"><h2>需要你处理 <span className="c">{attentionCount}</span></h2></div>
-            <div>
-              {conflicts.map((d) => {
-                const o = d.conflict_with ? byId.get(d.conflict_with) : null;
-                return (
-                  <div className="at" key={`c${d.id}`}>
-                    <span className="at-ic" style={{ background: "var(--red-bg)", color: "var(--red)" }}><Icon name="alert" /></span>
-                    <div className="at-b">
-                      <p><b>结论冲突</b> · {d.details.reason || "两个 AI 会话得出了不同结论"}</p>
-                      {o ? (
-                        <div className="vs">
-                          <div><span className="meta"><Avatar id={d.owner_id} name={d.owner_name} />{d.owner_name} · <Source s={d.source} /></span>{d.title}</div>
-                          <div><span className="meta"><Avatar id={o.owner_id} name={o.owner_name} />{o.owner_name} · <Source s={o.source} /></span>{o.title}</div>
+            <div className="box-h"><h2>待处理 <span className="c">{todo}</span></h2></div>
+            {todo ? (
+              <div>
+                {conflicts.map((d) => {
+                  const o = d.conflict_with ? byId.get(d.conflict_with) : null;
+                  return (
+                    <div className="at" key={`c${d.id}`}>
+                      <span className="at-ic" style={{ background: "var(--red-bg)", color: "var(--red)" }}><Icon name="alert" /></span>
+                      <div className="at-b">
+                        <p><b>冲突</b> · <Link href={`/item/${d.id}`}>{d.title}</Link></p>
+                        {o ? <p className="muted sm">与 <Link className="link" href={`/item/${o.id}`}>{code("decision", o.id)} {o.title}</Link></p> : null}
+                        <div className="row">
+                          <ActionButton className="btn sm pri" action={resolveConflict.bind(null, d.id, "this")}>用新的</ActionButton>
+                          <ActionButton action={resolveConflict.bind(null, d.id, "other")}>保留原来的</ActionButton>
                         </div>
-                      ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+                {urgent.map((t) => (
+                  <div className="at" key={`u${t.id}`}>
+                    <span className="at-ic" style={{ background: t.due_date! < today ? "var(--red-bg)" : "var(--amber-bg)", color: t.due_date! < today ? "var(--red)" : "var(--amber)" }}><Icon name="clock" /></span>
+                    <div className="at-b">
+                      <p><DueChip date={t.due_date} status={t.status} today={today} /> <Link href={`/item/${t.id}`}>{t.title}</Link></p>
+                    </div>
+                  </div>
+                ))}
+                {awaiting.slice(0, 6).map((d) => (
+                  <div className="at" key={`a${d.id}`}>
+                    <span className="at-ic" style={{ background: "var(--accent-soft)", color: "var(--accent-ink)" }}><Icon name="cons" /></span>
+                    <div className="at-b">
+                      <p><Link href={`/item/${d.id}`}>{d.title}</Link></p>
+                      <p className="muted sm">{d.owner_name} 提出{d.body ? ` · ${d.body}` : ""}</p>
                       <div className="row">
-                        <ActionButton className="btn sm pri" action={resolveConflict.bind(null, d.id, "this")}>采用新方案</ActionButton>
-                        <ActionButton action={resolveConflict.bind(null, d.id, "other")}>保留原共识</ActionButton>
-                        <Link className="btn sm ghost" href={`/consensus?s=conflict#${code("decision", d.id)}`}>查看细节</Link>
+                        <ActionButton className="btn sm pri" action={agree.bind(null, d.id)}><Icon name="check" />同意</ActionButton>
+                        <Link className="btn sm" href={`/item/${d.id}#discuss`}>有意见</Link>
                       </div>
                     </div>
                   </div>
-                );
-              })}
-              {awaiting.slice(0, 5).map((d) => (
-                <div className="at" key={`a${d.id}`}>
-                  <span className="at-ic" style={{ background: "var(--accent-soft)", color: "var(--accent-ink)" }}><Icon name="cons" /></span>
-                  <div className="at-b">
-                    <p><b>{d.owner_name} 等你确认</b> · {d.title}</p>
-                    {d.body ? <p className="muted" style={{ fontSize: 12.5 }}>{d.body}</p> : null}
-                    <div className="row">
-                      <ActionButton className="btn sm pri" action={agree.bind(null, d.id)}><Icon name="check" />同意</ActionButton>
-                      <Link className="btn sm" href={`/consensus?s=discussing#${code("decision", d.id)}`}>查看 / 提出异议</Link>
-                      <span className="meta"><Source s={d.source} /><Proj name={d.project_name} color={d.project_color} /></span>
+                ))}
+                {blocked.map((t) => (
+                  <div className="at" key={`b${t.id}`}>
+                    <span className="at-ic" style={{ background: "var(--red-bg)", color: "var(--red)" }}><Icon name="clock" /></span>
+                    <div className="at-b">
+                      <p><b>阻塞</b> · <Link href={`/item/${t.id}`}>{t.title}</Link></p>
+                      {t.blocked_by ? <p className="muted sm">等 <Link className="link" href={`/item/${t.blocked_by}`}>{code("decision", t.blocked_by)}</Link> 确认</p> : null}
                     </div>
                   </div>
-                </div>
-              ))}
-              {myBlocked.map((t) => (
-                <div className="at" key={`b${t.id}`}>
-                  <span className="at-ic" style={{ background: "var(--red-bg)", color: "var(--red)" }}><Icon name="clock" /></span>
-                  <div className="at-b">
-                    <p><b>你的任务被阻塞</b> · {t.title}</p>
-                    <p className="muted" style={{ fontSize: 12.5 }}>{t.blocked_by ? <>等待 <Link className="link" href={`/consensus#${code("decision", t.blocked_by)}`}>{code("decision", t.blocked_by)}</Link> 达成共识</> : t.last_update}</p>
+                ))}
+                {dups.map((t) => (
+                  <div className="at" key={`d${t.id}`}>
+                    <span className="at-ic" style={{ background: "var(--amber-bg)", color: "var(--amber)" }}><Icon name="users" /></span>
+                    <div className="at-b">
+                      <p><b>可能重复</b> · <Link href={`/item/${t.id}`}>{t.title}</Link></p>
+                      <p className="muted sm">和 <Link className="link" href={`/item/${t.duplicate_of}`}>{code("task", t.duplicate_of!)}</Link>{byId.get(t.duplicate_of!) ? `（${byId.get(t.duplicate_of!)!.assignee_name ?? byId.get(t.duplicate_of!)!.owner_name}）` : ""}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
-              {dups.map((t) => (
-                <div className="at" key={`d${t.id}`}>
-                  <span className="at-ic" style={{ background: "var(--amber-bg)", color: "var(--amber)" }}><Icon name="users" /></span>
-                  <div className="at-b">
-                    <p><b>可能在做重复工作</b> · {t.title}</p>
-                    <p className="muted" style={{ fontSize: 12.5 }}>
-                      和 <Link className="link" href={`/tasks#T-${t.duplicate_of}`}>{code("task", t.duplicate_of!)}</Link>{byId.get(t.duplicate_of!) ? `（${byId.get(t.duplicate_of!)!.assignee_name ?? byId.get(t.duplicate_of!)!.owner_name}）` : ""} 相似{t.details.reason ? `：${t.details.reason}` : ""}
-                    </p>
-                  </div>
-                </div>
-              ))}
-              {!attentionCount ? <div className="empty"><b>都处理完了</b><p>有需要你确认的决策、冲突或阻塞时会出现在这里。</p></div> : null}
-            </div>
+                ))}
+              </div>
+            ) : <div className="empty"><b>都处理完了</b></div>}
           </section>
 
           <section className="box">
-            <div className="box-h"><h2>最新共识</h2><Link className="link" href="/consensus">全部 <Icon name="arrow" className="i sm" /></Link></div>
-            <div className="list">
-              {decisions.filter((d) => d.status !== "superseded").slice(0, 5).map((d) => <DecisionRow key={d.id} item={d} me={me} threshold={threshold} since={since} other={d.conflict_with ? byId.get(d.conflict_with) : null} />)}
-              {!decisions.length ? <div className="empty"><b>还没有共识</b><p>导入一段 AI 对话，或者手动记录一条决策。</p><Link className="btn" href="/import">导入对话</Link></div> : null}
-            </div>
+            <div className="box-h"><h2>新动态 <span className="c">{ago(since) ? `自${ago(since)}` : ""}</span></h2><Link className="link" href="/activity">全部</Link></div>
+            {changes.length ? (
+              <ul className="since-list">
+                {changes.slice(0, 8).map((c) => (
+                  <li key={c.id}>
+                    <Avatar id={c.user_id} name={c.name} />
+                    <span className="since-t"><b>{c.name}</b> {line(c)}</span>
+                    <span className="muted since-ago">{ago(c.created_at)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : <div className="empty"><p>暂无新动态</p></div>}
           </section>
         </div>
 
         <div className="col">
           <section className="box">
-            <div className="box-h"><h2>本周目标</h2><Link className="link" href="/week">本周 <Icon name="arrow" className="i sm" /></Link></div>
+            <div className="box-h"><h2>本周目标</h2><Link className="link" href="/week">本周</Link></div>
             {teamGoals.length || myGoals.length ? (
               <div className="mini-goals">
                 {[...teamGoals, ...myGoals].slice(0, 6).map((g) => {
                   const pct = goalPct(g);
                   return (
                     <Link key={g.id} href="/week" className="mini-goal">
-                      <span className="mg-t">{g.scope === "personal" ? <span className="pill">我的</span> : null}{g.title}</span>
+                      <span className="mg-t">{g.scope === "personal" ? <span className="pill">我</span> : null}{g.title}</span>
                       <span className="mg-b"><span className={`prog ${g.status === "done" ? "done" : g.status === "at_risk" ? "blocked" : ""}`}><span style={{ width: `${pct}%` }} /></span><span className="mono">{pct}%</span></span>
                     </Link>
                   );
                 })}
               </div>
-            ) : <div className="empty" style={{ padding: 20 }}><p>还没有本周目标。</p><Link className="btn sm" href="/week">设定本周目标</Link></div>}
+            ) : <div className="empty sm-empty"><Link className="btn sm" href="/week">定本周目标</Link></div>}
           </section>
 
           <section className="box">
-            <div className="box-h"><h2>我的 DDL</h2><Link className="link" href="/tasks?v=timeline">时间线 <Icon name="arrow" className="i sm" /></Link></div>
-            {(() => {
-              const mineDue = tasks.filter((t) => t.assignee_id === me.id && t.status !== "done" && t.due_date && t.due_date <= addDays(today, 7))
-                .sort((a, b) => (a.due_date! < b.due_date! ? -1 : 1)).slice(0, 6);
-              return mineDue.length ? (
-                <ul className="plist pad">
-                  {mineDue.map((t) => <li key={t.id}><DueChip date={t.due_date} status={t.status} today={today} /><Link href={`/item/${t.id}`}>{t.title}</Link></li>)}
-                </ul>
-              ) : <div className="empty" style={{ padding: 20 }}><p>未来 7 天没有到期的任务。</p></div>;
-            })()}
+            <div className="box-h"><h2>我的 DDL</h2><Link className="link" href="/tasks?v=timeline">时间线</Link></div>
+            {upcoming.length ? (
+              <ul className="plist pad">
+                {upcoming.slice(0, 6).map((t) => <li key={t.id}><DueChip date={t.due_date} status={t.status} today={today} /><Link href={`/item/${t.id}`}>{t.title}</Link></li>)}
+              </ul>
+            ) : <div className="empty sm-empty"><p>7 天内没有到期</p></div>}
           </section>
 
           <section className="box">
-            <div className="box-h"><h2>项目进度</h2><Link className="link" href="/tasks">任务看板 <Icon name="arrow" className="i sm" /></Link></div>
+            <div className="box-h"><h2>项目</h2><Link className="link" href="/tasks">任务</Link></div>
             {projRows.length ? projRows.map((p) => (
               <div className="pr" key={p.id}>
                 <Link className="nm" href={`/tasks?p=${p.id}`}><span className="pdot" style={{ background: p.color }} />{p.name}</Link>
-                <div className="bars"><Progress done={p.pct} total={100} status={p.blocked ? "blocked" : p.pct === 100 ? "done" : "doing"} /><span className="pc">{p.pct}%</span></div>
-                <span className="cnt">{p.done}/{p.total} 任务{p.blocked ? <span style={{ color: "var(--red)" }}> · 阻塞</span> : null}</span>
+                <div className="bars"><Progress done={p.pct} total={100} status={p.late ? "blocked" : p.pct === 100 ? "done" : "doing"} /><span className="pc">{p.pct}%</span></div>
+                <span className="cnt">{p.open} 个未完成{p.late ? <span style={{ color: "var(--red)" }}> · 有逾期</span> : null}</span>
               </div>
-            )) : <div className="empty"><p>还没有项目。</p><Link className="btn sm" href="/settings#projects">创建项目</Link></div>}
+            )) : <div className="empty sm-empty"><Link className="btn sm" href="/settings#projects">建项目</Link></div>}
           </section>
 
-          <section className="box">
-            <div className="box-h"><h2>任务动态</h2><span className="c">实时</span></div>
-            <div className="list">
-              {tasks.filter((t) => t.last_update_at).sort((a, b) => (b.last_update_at! > a.last_update_at! ? 1 : -1)).slice(0, 5).map((t) => {
-                const pr = progressOf(t.status, t.subtasks);
-                return (
-                  <Link key={t.id} className="it" href={`/item/${t.id}`} style={{ gridTemplateColumns: "minmax(0,1fr)" }}>
-                    <div className="meta"><Avatar id={t.assignee_id} name={t.assignee_name} /><b>{t.title}</b><span className="ref">{pr.done}/{pr.total}</span></div>
-                    <div className="meta"><Source s={t.last_update_source ?? t.source} only /><span>{t.last_update}</span><span>· {ago(t.last_update_at)}</span><span className={`tag s-${t.status}`}>{TASK_STATUS[t.status]}</span></div>
-                  </Link>
-                );
-              })}
-              {!tasks.some((t) => t.last_update_at) ? <div className="empty"><p>任务进度会随着大家的 AI 对话自动更新。</p></div> : null}
-            </div>
-          </section>
-
-          <section className="box">
-            <div className="box-h"><h2>本周 AI 使用分布</h2><span className="c">只统计次数</span></div>
-            <div className="dist">
-              {usage.length ? usage.map((u) => (
-                <div className="dr" key={u.source}><Source s={u.source} /><div className="b"><span style={{ width: `${(u.n / maxUsage) * 100}%`, background: sourceOf(u.source).color }} /></div><span className="x">{u.n}</span></div>
-              )) : <p className="muted" style={{ margin: 0, fontSize: 12.5 }}>支持 {Object.values(SOURCES).slice(0, 9).map((s) => s.name).join("、")} 等。</p>}
-            </div>
-          </section>
+          {decisions.some((d) => d.status === "confirmed") ? (
+            <section className="box">
+              <div className="box-h"><h2>最近的共识</h2><Link className="link" href="/consensus?s=confirmed">全部</Link></div>
+              <ul className="plist pad">
+                {decisions.filter((d) => d.status === "confirmed").slice(0, 5).map((d) => (
+                  <li key={d.id}><span className="ref">{code("decision", d.id)}</span><Link href={`/item/${d.id}`}>{d.title}</Link><Source s={d.source} only /></li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
         </div>
       </div>
     </>

@@ -4,7 +4,7 @@ import { CORS, json, userFromRequest } from "@/lib/token";
 import { TASK_STATUS, type Subtask } from "@/lib/meta";
 
 // Minimal stateless MCP server (Streamable HTTP, JSON responses) exposing the team memory.
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const TOOLS = [
   {
@@ -106,7 +106,7 @@ async function callTool(me: Actor, name: string, a: Record<string, unknown>, cli
     case "update_task": {
       const id = Number(String(a.task_id).replace(/^T-?/i, ""));
       const task = await getItem(id);
-      if (!task || task.kind !== "task") return `找不到任务 ${a.task_id}`;
+      if (!task || task.kind !== "task" || (task.visibility !== "team" && task.owner_id !== me.id)) return `找不到任务 ${a.task_id}`;
       if (a.status && a.status !== task.status) await moveTask(me, id, String(a.status));
       const done = new Set(Array.isArray(a.done_subtasks) ? a.done_subtasks.map((s) => String(s).trim()) : []);
       const subs: Subtask[] = task.subtasks.map((s) => (done.has(s.title.trim()) ? { ...s, done: true } : s));

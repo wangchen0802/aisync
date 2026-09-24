@@ -29,7 +29,7 @@ export default async function Settings() {
   const auto = (await one<{ auto_publish: boolean }>("select auto_publish from users where id = $1", [me.id]))?.auto_publish ?? false;
   return (
     <>
-      <div className="ph"><div><h1>设置</h1><p>工作区、项目、成员和部署状态。</p></div></div>
+      <div className="ph"><div><h1>设置</h1></div></div>
 
       <div className="two">
         <section className="box">
@@ -62,7 +62,7 @@ export default async function Settings() {
               <ActionButton className="btn sm ghost" action={archiveProject.bind(null, p.id, !p.archived)}>{p.archived ? "恢复" : "归档"}</ActionButton>
             </div>
           ))}
-          {!projects.length ? <div className="empty"><p>还没有项目。项目帮 AI 把对话归类，也让进度按项目汇总。</p></div> : null}
+          {!projects.length ? <div className="empty"><p>暂无项目</p></div> : null}
         </div>
       </section>
 

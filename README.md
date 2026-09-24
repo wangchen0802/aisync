@@ -24,6 +24,9 @@
 
 ## 部署到 Vercel（约 10 分钟）
 
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fwangchen0802%2Faisync&env=AUTH_SECRET,TEAM_PASSCODE,ANTHROPIC_API_KEY&envDescription=AUTH_SECRET%20%E7%94%A8%20openssl%20rand%20-base64%2032%20%E7%94%9F%E6%88%90&project-name=simreal-sync)
+
+
 1. **导入仓库**：Vercel → Add New → Project，选这个仓库，默认设置即可（Framework：Next.js）。
 2. **连接数据库**：在项目里打开 **Storage → Create Database → Neon (Postgres)**，连接到这个项目，会自动设置 `DATABASE_URL`。表会在第一次访问时自动创建，不需要跑迁移。
 3. **添加环境变量**（Settings → Environment Variables）：
@@ -39,11 +42,12 @@
    | `ALLOWED_EMAIL_DOMAINS` | 建议 | 例如 `simreal.ai`，这个域名的邮箱用 Google / GitHub 登录时不需要邀请 |
    | `ANTHROPIC_API_KEY` | 强烈建议 | 开启 AI 提炼、冲突检测和问答。不填会退回规则提取 |
    | `ANTHROPIC_MODEL` | 可选 | 默认 `claude-opus-5` |
-   | `CRON_SECRET` | 可选 | 工作日北京时间 18:00 自动推送每日简报（通知渠道在应用的「设置 → 团队通知」里配置） |
+   | `CRON_SECRET` | 建议 | 开启定时任务：工作日 9:00 私信每人今天的 DDL 和待确认（周一加发本周目标），18:00 群里推每日简报 |
 
-4. **Redeploy**，打开网站登录。**第一个登录的人自动成为管理员。**
-5. 管理员在「设置」里创建项目、邀请队友（或者直接把团队口令发给大家）。
-6. 每个人打开「连接 AI」页面，安装浏览器插件，配置 Claude Code / Cursor。
+4. **Redeploy**。打开 `https://<你的域名>/api/health` 检查：`database`、`auth_secret` 为 `true`，`login` 里至少有一种登录方式。
+5. 打开网站登录。**第一个登录的人自动成为管理员。**
+6. 管理员在「设置」里创建项目、邀请队友（或者直接把团队口令发给大家）。
+7. 每个人打开「连接 AI」页面，安装浏览器插件，配置 Claude Code / Cursor。
 
 ### 配置 Lark（推荐）
 
@@ -77,7 +81,7 @@
 | AI | 接入方式 |
 | --- | --- |
 | ChatGPT、Claude、DeepSeek、Gemini、Grok、Perplexity、Kimi、豆包、通义千问 | 浏览器插件：页面右下角有「同步到团队」和「插入团队上下文」两个按钮，快捷键 `Alt+Shift+S` |
-| Claude Code | MCP（`claude mcp add ...`）+ SessionEnd Hook 自动同步 |
+| Claude Code | 一条命令（「连接 AI」页复制）：装好 SessionEnd Hook 自动同步 + MCP 读写团队记忆 |
 | Cursor、Windsurf、Claude Desktop 等 MCP 客户端 | 远程 MCP：`https://<你的域名>/api/mcp` |
 | 其他任何 AI | 在「导入对话」页面粘贴 |
 
@@ -88,8 +92,10 @@
 ### API
 
 - `POST /api/ingest`（`Authorization: Bearer sr_...`）：`{ source, title?, url?, text }`，把对话放进收件箱
-- `POST /api/mcp`：MCP（Streamable HTTP）。工具：`search_team_memory`、`get_team_context`、`log_decision`、`create_task`、`update_task`、`sync_conversation`
-- `GET /api/context?project=<id>`：纯文本的团队上下文包
+- `POST /api/mcp`：MCP（Streamable HTTP）。工具：`search_team_memory`、`get_team_context`、`get_my_work`、`log_decision`、`create_task`、`update_task`、`sync_conversation`
+- `GET /api/context?scope=team|project|me&project=<id>&topic=<话题>`：纯文本的团队上下文包
+- `GET /c/<链接密钥>`：只读上下文链接（「记忆」页可以重置）
+- `GET /api/health`：部署自检（只返回是否配置，不返回值）
 
 ---
 

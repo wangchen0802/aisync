@@ -7,7 +7,7 @@ import { code, DECISION_STATUS, TASK_STATUS } from "@/lib/meta";
 import { Icon } from "@/components/ui";
 
 type Answer = Awaited<ReturnType<typeof askTeam>>;
-const SUGGEST = ["我们最近做了哪些技术决策？", "谁在负责什么？", "还有哪些问题没定？", "有哪些任务被阻塞了？"];
+const SUGGEST = ["最近定了什么？", "谁在负责什么？", "哪些还没定？", "什么被阻塞了？"];
 
 function hrefOf(kind: string, id: number) {
   return `/item/${id}`;
@@ -46,15 +46,15 @@ export function AskBox({ initial, ai, autoFocus = true }: { initial: string; ai:
     <>
       <form className="box ask" onSubmit={(e) => { e.preventDefault(); ask(q); }}>
         <Icon name="ask" style={{ color: "var(--accent)" }} />
-        <input autoFocus={autoFocus} value={q} onChange={(e) => setQ(e.target.value)} placeholder="例如：我们对支付方案做过哪些决定？" aria-label="提问" />
+        <input autoFocus={autoFocus} value={q} onChange={(e) => setQ(e.target.value)} placeholder="例如：支付方案定了什么？" aria-label="提问" />
         <button className="btn pri" disabled={pending || !q.trim()}>{pending ? <span className="spin" /> : null}提问</button>
       </form>
       <div className="chips">
         {SUGGEST.map((s) => <button key={s} className="chip" onClick={() => { setQ(s); ask(s); }}>{s}</button>)}
       </div>
-      {!ai ? <div className="note">没有配置 ANTHROPIC_API_KEY，目前只返回关键词匹配的条目，不会生成总结回答。</div> : null}
+      {!ai ? <div className="note">未配置 ANTHROPIC_API_KEY，只返回关键词匹配结果。</div> : null}
       {pending ? (
-        <section className="box ans"><span className="muted row"><span className="spin" />正在翻团队记忆：{asked}</span></section>
+        <section className="box ans"><span className="muted row"><span className="spin" />正在查：{asked}</span></section>
       ) : ans ? (
         <section className="box ans">
           <Rich text={ans.answer} />

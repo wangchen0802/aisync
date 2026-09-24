@@ -35,10 +35,14 @@ export default async function Consensus({ searchParams }: { searchParams: Promis
       <div className="ph">
         <div>
           <h1>团队共识{project ? ` · ${project.name}` : ""}</h1>
-          <p>从每个人的 AI 对话里提炼出的决策。{threshold > 1 ? `${threshold} 位成员同意` : "有人同意"}后形成共识；和已有共识矛盾时会自动标出冲突。</p>
+          <p className="ph-meta">
+            <span className={count("discussing") ? "hot" : ""}>{count("discussing")} 条待确认</span>
+            {count("conflict") ? <span className="bad">{count("conflict")} 处冲突</span> : null}
+            <span>{threshold} 人同意即生效</span>
+          </p>
         </div>
         <div className="row">
-          <CopyButton text={contextPackText(decisions)} label="复制为 AI 上下文" done="已复制已确认的共识，粘贴到任何 AI 即可" />
+          <CopyButton text={contextPackText(decisions)} label="复制给 AI" done="已复制" />
           <NewItemButton kind={tab === "question" ? "question" : tab === "insight" ? "insight" : "decision"} projects={projects} members={members} defaultProject={projectId} />
         </div>
       </div>
@@ -58,8 +62,7 @@ export default async function Consensus({ searchParams }: { searchParams: Promis
           {list.map((d) => <DecisionRow key={d.id} item={d} me={me} threshold={threshold} other={d.conflict_with ? byId.get(d.conflict_with) : null} />)}
           {!list.length ? (
             <div className="empty">
-              <b>{tab === "all" ? "还没有任何决策" : "这里暂时是空的"}</b>
-              <p>{tab === "all" ? "从 AI 对话中导入，或者手动记录一条。之后大家的 AI 都能读到这些共识。" : "换个筛选看看。"}</p>
+              <p>{tab === "all" ? "暂无决策" : "没有符合条件的条目"}</p>
               {tab === "all" ? <Link className="btn" href="/import">导入对话</Link> : null}
             </div>
           ) : null}

@@ -7,7 +7,7 @@ const MODEL = () => process.env.ANTHROPIC_MODEL || "claude-opus-5";
 
 let _client: Anthropic | null = null;
 function client() {
-  if (!_client) _client = new Anthropic({ timeout: 55_000, maxRetries: 1 });
+  if (!_client) _client = new Anthropic({ timeout: 100_000, maxRetries: 0 });
   return _client;
 }
 

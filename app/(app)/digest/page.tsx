@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireUser } from "@/lib/session";
 import { buildDigest, DIGEST_LABEL } from "@/lib/digest";
 import { sendDigest } from "@/lib/actions";
@@ -20,7 +21,7 @@ export default async function Digest() {
       <div className="ph">
         <div>
           <h1>每日简报</h1>
-          <p>根据过去 24 小时的共识和任务进展自动生成。{slack ? "工作日 18:00（北京时间）自动推送到团队群。" : "在「设置 → 团队通知」里配置飞书 / 企业微信 / Slack 后，工作日 18:00 会自动推送到群里。"}</p>
+          <p className="ph-meta"><span>过去 24 小时</span>{slack ? <span>工作日 18:00 自动发到群</span> : <span><Link className="link" href="/settings#notify">配置群通知</Link>后自动发送</span>}</p>
         </div>
         {slack ? <ActionButton className="btn" action={sendDigest}><Icon name="arrow" />立即推送到群</ActionButton> : null}
       </div>
@@ -53,7 +54,7 @@ export default async function Digest() {
             </ul>
           </div>
         ))}
-        {!d.sections.length ? <div className="empty" style={{ padding: "12px 0" }}><p>今天还没有新的共识或任务进展。</p></div> : null}
+        {!d.sections.length ? <div className="empty" style={{ padding: "12px 0" }}><p>过去 24 小时没有新进展</p></div> : null}
       </article>
     </>
   );

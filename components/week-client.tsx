@@ -26,7 +26,7 @@ export function GoalAdd({ scope, week, projects }: { scope: "team" | "personal";
       start(async () => { const r = await saveGoal({ title, scope, week, projectId: Number(project) || null }); report(r); if (r.ok) setTitle(""); });
     }}>
       <Icon name="plus" className="i sm" />
-      <input className="grow" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={scope === "team" ? "添加团队本周目标，例如：支付功能上线内测" : "添加我的本周目标"} aria-label="新目标" />
+      <input className="grow" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={scope === "team" ? "添加团队目标" : "添加我的目标"} aria-label="新目标" />
       {projects.length ? (
         <select value={project} onChange={(e) => setProject(e.target.value)} aria-label="项目">
           <option value="">不限项目</option>
@@ -50,7 +50,7 @@ export function GoalRow({ g }: { g: GoalView }) {
           <span className="meta">
             {g.scope === "personal" ? <span>{g.owner_name}</span> : null}
             {g.project_name ? <span className="proj"><span className="pdot" style={{ background: g.project_color ?? "var(--faint)" }} />{g.project_name}</span> : null}
-            {g.tasks_total ? <Link className="link" href={`/tasks?v=board`}>{g.tasks_done}/{g.tasks_total} 个任务完成</Link> : <span>还没有关联任务</span>}
+            {g.tasks_total ? <Link className="link" href={`/tasks?v=board`}>任务 {g.tasks_done}/{g.tasks_total}</Link> : <span>未关联任务</span>}
           </span>
         </div>
         <select className={`tag goal-status ${label[1]}`} value={st} disabled={pending} aria-label="目标状态"

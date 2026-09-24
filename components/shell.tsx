@@ -131,12 +131,12 @@ export function QuickCapture({ projects, members }: { projects: Opt[]; members: 
   return (
     <Dialog title="快速记录" onClose={close}
       footer={<>
-        <Link className="btn ghost" href="/import" onClick={close} style={{ marginRight: "auto" }}>粘贴整段对话 →</Link>
+        <Link className="btn ghost" href="/import" onClick={close} style={{ marginRight: "auto" }}>导入整段对话</Link>
         <button className="btn pri" disabled={pending || !text.trim()} onClick={submit}>{pending ? <span className="spin" /> : null}记录{KIND_LABEL[kind as keyof typeof KIND_LABEL]}</button>
       </>}>
       <textarea
         className="textarea" autoFocus rows={3} value={text} onChange={(e) => setText(e.target.value)} aria-label="内容"
-        placeholder={"一句话写下结论，例如：\n我们决定 MVP 先不做 SSO\nBob 负责结算页，周五前完成"}
+        placeholder={"例如：MVP 先不做 SSO\n或：Bob 周五前完成结算页"}
         onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); submit(); } }}
       />
       <div className="row" style={{ gap: 6 }}>
@@ -145,7 +145,7 @@ export function QuickCapture({ projects, members }: { projects: Opt[]; members: 
             <span className={`kind k-${k}`} style={{ padding: 0, background: "none" }}>{l}</span>
           </button>
         ))}
-        {!picked && guessed ? <span className="muted" style={{ fontSize: 11.5 }}>已自动识别</span> : null}
+        {!picked && guessed ? <span className="muted" style={{ fontSize: 11.5 }}>自动</span> : null}
       </div>
       <div className="two">
         <label className="field"><span>项目</span>
@@ -164,7 +164,7 @@ export function QuickCapture({ projects, members }: { projects: Opt[]; members: 
         ) : <div />}
       </div>
       {kind === "task" ? (
-        <label className="field"><span>DDL（不填会从文字里识别，比如「周五前」）</span>
+        <label className="field"><span>DDL</span>
           <input className="input" type="date" value={due} onChange={(e) => setDue(e.target.value)} />
         </label>
       ) : null}

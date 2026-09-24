@@ -70,7 +70,7 @@ export function Timeline({ tasks }: { tasks: TimelineTask[] }) {
     if (r) setHover({ t, x: e.clientX - r.left + 14, y: e.clientY - r.top + 14 });
   };
 
-  if (!tasks.length) return <div className="box"><div className="empty"><b>还没有任务</b><p>给任务设置 DDL 后，这里会按时间排开，一眼看出谁在做什么、什么快到期。</p></div></div>;
+  if (!tasks.length) return <div className="box"><div className="empty"><p>暂无设了 DDL 的任务</p></div></div>;
 
   return (
     <div className="stack" style={{ gap: 12 }}>
@@ -114,8 +114,8 @@ export function Timeline({ tasks }: { tasks: TimelineTask[] }) {
           </div>
         ) : null}
         <div className="tl-legend">
-          <span><i className="lg-bar" />计划区间（创建 → DDL）</span>
-          <span><i className="lg-fill" />子任务完成度</span>
+          <span><i className="lg-bar" />创建 → DDL</span>
+          <span><i className="lg-fill" />已完成部分</span>
           <span><i className="lg-late" />逾期</span>
           <span><i className="lg-done" />已完成</span>
           <span><i className="lg-today" />今天</span>
@@ -123,7 +123,7 @@ export function Timeline({ tasks }: { tasks: TimelineTask[] }) {
       </div>
       {unscheduled.length ? (
         <div className="box">
-          <div className="box-h"><h2>还没设 DDL <span className="c">{unscheduled.length}</span></h2><span className="muted" style={{ fontSize: 12 }}>设好 DDL 才能出现在时间线和提醒里</span></div>
+          <div className="box-h"><h2>未设 DDL <span className="c">{unscheduled.length}</span></h2></div>
           <div className="chips pad">
             {unscheduled.map((t) => <Link key={t.id} href={`/item/${t.id}`} className="chip">{t.title.slice(0, 28)}{t.title.length > 28 ? "…" : ""}</Link>)}
           </div>

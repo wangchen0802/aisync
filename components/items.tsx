@@ -81,7 +81,7 @@ export function DecisionRow({ item, me, threshold, other, since }: { item: ItemR
         {item.status === "superseded" && item.superseded_by ? <span className="meta">已被 <Link className="link" href={`#${code("decision", item.superseded_by)}`}>{code("decision", item.superseded_by)}</Link> 取代</span> : null}
         {item.kind === "decision" && (item.status === "confirmed" || item.status === "superseded") && canForce ? <ActionButton className="btn sm ghost" action={reopenDecision.bind(null, item.id)}>重新讨论</ActionButton> : null}
         <Link className="more" href={`/item/${item.id}#discuss`}><Icon name="chat" className="i sm" />{item.comment_count ? `${item.comment_count} 条讨论` : "讨论"}</Link>
-        <CopyButton className="link" label="引用到我的 AI" text={`[团队共识 ${ref}] ${item.title}${item.body ? `。理由：${item.body}` : ""}`} done="已复制，可以粘贴到任何 AI 对话里" />
+        <CopyButton className="link" label="复制给 AI" text={`[团队共识 ${ref}] ${item.title}${item.body ? `。理由：${item.body}` : ""}`} done="已复制" />
       </div>
 
       <div className="full d-full">

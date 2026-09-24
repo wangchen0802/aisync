@@ -84,6 +84,8 @@ if (authProviders.passcode) {
         if (!safeEqual(passcode, process.env.TEAM_PASSCODE ?? "")) return null;
         const domains = list(process.env.ALLOWED_EMAIL_DOMAINS);
         if (domains.length && !domains.includes(email.split("@")[1]) && !(await isAllowed(email))) return null;
+        // An account already bound to Lark must sign in through Lark, so the shared passcode can't be used to impersonate it.
+        if (authProviders.lark && (await one("select 1 from users where lower(email) = $1 and lark_open_id is not null", [email]))) return null;
         return { id: email, email, name };
       },
     }),

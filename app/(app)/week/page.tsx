@@ -50,7 +50,7 @@ export default async function Week({ searchParams }: { searchParams: Promise<{ w
       <div className="ph">
         <div>
           <h1>第 {weekNo} 周 <span className="muted" style={{ fontWeight: 400, fontSize: 16 }}>{fmtDay(mon).split(" ")[0]} – {fmtDay(sun).split(" ")[0]}</span></h1>
-          <p>{team.length ? `团队目标平均完成 ${teamPct}%` : "还没有设定本周目标"} · 本周完成 {doneCount} 个任务 · 形成 {confirmed.length} 项共识{overdue.length ? ` · ${overdue.length} 个任务逾期` : ""}</p>
+          <p className="ph-meta"><span>目标 {team.length ? `${teamPct}%` : "未设定"}</span><span>完成 {doneCount} 个任务</span><span>{confirmed.length} 项共识</span>{overdue.length ? <span className="bad">逾期 {overdue.length}</span> : null}</p>
         </div>
         <div className="row">
           <Link className="btn" href={`/week?w=${addDays(mon, -7)}`} aria-label="上一周"><Icon name="back" /></Link>
@@ -64,7 +64,7 @@ export default async function Week({ searchParams }: { searchParams: Promise<{ w
           <section className="box">
             <div className="box-h">
               <h2><Icon name="bolt" />团队目标 <span className="c">{team.length}</span></h2>
-              {carry && isCurrent ? <ActionButton className="btn sm ghost" action={carryOverGoals.bind(null, addDays(mon, -7), mon)}>延续上周未完成（{carry}）</ActionButton> : null}
+              {carry && isCurrent ? <ActionButton className="btn sm ghost" action={carryOverGoals.bind(null, addDays(mon, -7), mon)}>延续上周（{carry}）</ActionButton> : null}
             </div>
             <div className="goals">
               {team.map((g) => <GoalRow key={g.id} g={g} />)}
@@ -92,7 +92,7 @@ export default async function Week({ searchParams }: { searchParams: Promise<{ w
             </div>
             {overdue.length ? (
               <div className="pad" style={{ borderTop: "1px solid var(--line)" }}>
-                <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>之前逾期、还没完成</div>
+                <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>之前逾期</div>
                 <ul className="plist">{overdue.slice(0, 6).map((t) => <li key={t.id}><Avatar id={t.assignee_id} name={t.assignee_name} /><Link href={`/item/${t.id}`}>{t.title}</Link><DueChip date={t.due_date} status={t.status} today={today} /></li>)}</ul>
               </div>
             ) : null}
@@ -101,7 +101,7 @@ export default async function Week({ searchParams }: { searchParams: Promise<{ w
 
         <div className="col">
           <section className="box">
-            <div className="box-h"><h2>我的本周目标</h2><span className="c">仅自己可见</span></div>
+            <div className="box-h"><h2>我的本周目标</h2><span className="c">仅自己</span></div>
             <div className="goals">
               {personal.map((g) => <GoalRow key={g.id} g={g} />)}
               <GoalAdd scope="personal" week={mon} projects={[]} />
@@ -109,7 +109,7 @@ export default async function Week({ searchParams }: { searchParams: Promise<{ w
           </section>
 
           <section className="box">
-            <div className="box-h"><h2>每天完成的任务</h2><span className="c">{doneCount} 个</span></div>
+            <div className="box-h"><h2>每日完成</h2><span className="c">{doneCount} 个</span></div>
             <div className="pad"><DoneChart days={doneByDay} /></div>
           </section>
 

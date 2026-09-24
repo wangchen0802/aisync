@@ -35,7 +35,7 @@ export function BriefEditor({ initial, meta }: { initial: string; meta: string }
   return (
     <div className="stack" style={{ gap: 8 }}>
       <textarea className="textarea brief" value={text} onChange={(e) => setText(e.target.value)} aria-label="团队档案"
-        placeholder="团队的长期背景：我们是谁、在做什么、当前阶段、技术栈、术语……所有 AI 每次都会先读这一段。" />
+        placeholder="我们是谁、在做什么、技术栈、术语" />
       <div className="row">
         <span className="muted" style={{ fontSize: 12 }}>约 {estimateTokens(text)} tokens{meta ? ` · ${meta}` : ""}</span>
         <span className="grow" />
@@ -52,14 +52,14 @@ export function ProjectContextEditor({ projects }: { projects: { id: number; nam
   const [text, setText] = useState(current?.context ?? "");
   const [pending, start] = useTransition();
   useEffect(() => setText(projects.find((p) => p.id === pid)?.context ?? ""), [pid, projects]);
-  if (!projects.length) return <p className="muted" style={{ margin: 0, fontSize: 13 }}>还没有项目。先在「设置」里建项目。</p>;
+  if (!projects.length) return <p className="muted" style={{ margin: 0, fontSize: 13 }}>暂无项目</p>;
   return (
     <div className="stack" style={{ gap: 8 }}>
       <div className="row src-pick" style={{ gap: 6 }}>
         {projects.map((p) => <button key={p.id} className={`chip${p.id === pid ? " chip-on" : ""}`} onClick={() => setPid(p.id)}>{p.name}{p.context ? "" : " ·"}</button>)}
       </div>
       <textarea className="textarea brief" style={{ minHeight: 150 }} value={text} onChange={(e) => setText(e.target.value)} aria-label="项目背景"
-        placeholder={`「${current?.name}」的背景：目标、范围、当前状态、关键约束、相关链接。AI 在处理这个项目的问题时会读到。`} />
+        placeholder="目标、范围、约束、链接" />
       <div className="row">
         <span className="muted" style={{ fontSize: 12 }}>约 {estimateTokens(text)} tokens</span>
         <span className="grow" />
@@ -96,7 +96,7 @@ export function ContextPreview({ projects, link, workspace }: { projects: { id: 
     a.download = `${workspace}-context-${data.asOf}.md`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    toast("已下载，可以上传到 ChatGPT / Claude 的 Project 知识库");
+    toast("已下载");
   };
 
   return (
@@ -115,7 +115,7 @@ export function ContextPreview({ projects, link, workspace }: { projects: { id: 
         </div>
       </div>
       <form className="row" onSubmit={(e) => { e.preventDefault(); load(); }}>
-        <input className="input sm grow" value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="可选：当前话题，例如「定价」——相关条目会排在最前面" aria-label="话题" />
+        <input className="input sm grow" value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="话题（可选），如：定价" aria-label="话题" />
         <button className="btn sm">预览</button>
       </form>
       {data ? (
@@ -129,9 +129,9 @@ export function ContextPreview({ projects, link, workspace }: { projects: { id: 
           </div>
           <pre className="code ctx-pre" aria-busy={pending}>{data.text}</pre>
           <div className="row">
-            <CopyButton className="btn sm pri" text={data.text} label="复制上下文" done="已复制，粘贴到任何 AI 的对话开头" />
+            <CopyButton className="btn sm pri" text={data.text} label="复制" done="已复制" />
             <button className="btn sm" onClick={download}><Icon name="download" />下载 .md</button>
-            <CopyButton className="btn sm" text={`先阅读这个链接里的团队上下文，再回答我接下来的问题：${fullLink}`} label="复制只读链接" done="已复制，发给能联网的 AI 即可" />
+            <CopyButton className="btn sm" text={`先阅读这个链接里的团队上下文，再回答我接下来的问题：${fullLink}`} label="复制链接" done="已复制" />
           </div>
         </>
       ) : <div className="muted row"><span className="spin" />正在生成…</div>}

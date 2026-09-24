@@ -8,7 +8,7 @@ export const metadata = { title: "登录" };
 export const dynamic = "force-dynamic";
 
 const ERRORS: Record<string, string> = {
-  CredentialsSignin: "口令不对，或者邮箱不在允许的范围内。",
+  CredentialsSignin: "口令不对、邮箱不在允许范围，或这个邮箱已绑定 Lark（请用 Lark 登录）。",
   AccessDenied: "这个账号还没有被邀请。请让管理员在「设置 → 成员」里邀请你的邮箱，或使用团队口令登录。",
   Configuration: "登录配置有误，请检查 AUTH_SECRET 和登录方式的环境变量。",
   Lark: "Lark 登录失败：请确认 Lark 应用已发布、回调地址已配置，且开通了获取用户信息的权限。",
@@ -36,7 +36,7 @@ async function github() {
 function Setup() {
   return (
     <div className="stack" style={{ maxWidth: 440 }}>
-      <div className="note warn">还差一步配置，团队才能登录。</div>
+      <div className="note warn">部署还差几项配置</div>
       <ol className="ol">
         {!dbConfigured() ? <li>在 Vercel 项目的 <b>Storage</b> 里创建一个 <b>Neon (Postgres)</b> 数据库并连接到这个项目（会自动设置 <span className="mono">DATABASE_URL</span>）。</li> : null}
         {!process.env.AUTH_SECRET ? <li>在 <b>Settings → Environment Variables</b> 添加 <span className="mono">AUTH_SECRET</span>（任意 32 位以上随机字符串）。</li> : null}
@@ -64,8 +64,8 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
           <b style={{ fontSize: 16, letterSpacing: "-0.01em" }}>SimReal Sync</b>
         </div>
         <div>
-          <h1>让每个人的 AI，<br />都知道团队在想什么</h1>
-          <p>大家在 ChatGPT、Claude、DeepSeek、Gemini、Grok 里的对话，自动变成团队看得见的共识和任务进度。</p>
+          <h1>团队在 AI 里做的决定，<br />大家都看得见</h1>
+          <p>ChatGPT、Claude、DeepSeek、Gemini、Grok 里的对话，自动整理成共识、任务和 DDL。</p>
         </div>
         {!ready ? <Setup /> : (
           <div className="login-form">
@@ -98,12 +98,11 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
                 <form action={passcodeLogin} className="stack" style={{ gap: 8 }}>
                   <input className="input" name="name" placeholder="你的名字" required autoComplete="name" />
                   <input className="input" name="email" type="email" placeholder="工作邮箱" required autoComplete="email" />
-                  <input className="input" name="passcode" type="password" placeholder="团队口令（向管理员要）" required autoComplete="current-password" />
+                  <input className="input" name="passcode" type="password" placeholder="团队口令" required autoComplete="current-password" />
                   <button className="btn pri lg">进入工作区</button>
                 </form>
               </>
             ) : null}
-            <p className="fine">登录后，通过浏览器插件和 MCP 把你的 ChatGPT、Claude、DeepSeek、Gemini、Grok 连接进来。</p>
           </div>
         )}
       </div>

@@ -8,6 +8,7 @@ import { AutoPublishToggle } from "@/components/prefs";
 import { one } from "@/lib/db";
 
 export const metadata = { title: "收件箱" };
+export const maxDuration = 120;
 
 export default async function Inbox({ searchParams }: { searchParams: Promise<{ c?: string }> }) {
   const me = await requireUser();
@@ -22,7 +23,6 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<{ 
       <div className="ph">
         <div>
           <h1>收件箱</h1>
-          <p>AI 已经替你提炼好了。勾选要发布的条目，可以直接改文字。没发布的内容只有你自己看得到。</p>
         </div>
         <Link className="btn" href="/import">导入对话</Link>
       </div>
@@ -30,8 +30,7 @@ export default async function Inbox({ searchParams }: { searchParams: Promise<{ 
       {!current ? (
         <section className="box">
           <div className="empty">
-            <b>收件箱是空的</b>
-            <p>通过浏览器插件、Claude Code 或手动粘贴同步的对话，会先到这里等你审核。</p>
+            <p>收件箱是空的</p>
             <div className="row" style={{ justifyContent: "center" }}><Link className="btn pri" href="/import">导入对话</Link><Link className="btn" href="/connect">安装插件</Link></div>
           </div>
         </section>

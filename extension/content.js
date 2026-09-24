@@ -110,7 +110,7 @@
 
   async function sync() {
     const c = collect();
-    if (c.text.length < 40) return toast("这个页面上还没有可同步的对话内容。", true);
+    if (c.text.length < 40) return toast("这页还没有对话内容", true);
     toast("正在提炼共识与任务…");
     const r = await send({ type: "sync", payload: { source: SOURCE, title: title(), url: location.href, text: c.text } });
     if (!r.ok) return toast(r.error, true);
@@ -126,11 +126,11 @@
     const r = await send({ type: "context", topic: title() });
     if (!r.ok) return toast(r.error, true);
     if (!input) {
-      try { await navigator.clipboard.writeText(r.data); toast("没找到输入框，已复制团队上下文到剪贴板。"); } catch { toast("没找到输入框。", true); }
+      try { await navigator.clipboard.writeText(r.data); toast("没找到输入框，已复制到剪贴板"); } catch { toast("没找到输入框", true); }
       return;
     }
     insertText(input, r.data);
-    toast("已插入团队上下文，AI 会按团队共识回答。");
+    toast("已插入团队上下文");
   }
 
   // Clicking the button can clear the page selection, so capture it first.

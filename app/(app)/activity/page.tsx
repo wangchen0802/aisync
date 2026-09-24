@@ -46,10 +46,9 @@ export default async function Activity({ searchParams }: { searchParams: Promise
       <div className="ph">
         <div>
           <h1>动态</h1>
-          <p>谁在用 AI 推进什么。这里只显示本人发布的结论和进展，原始对话不会公开。</p>
         </div>
       </div>
-      {synced ? <div className="note" style={{ color: "var(--green)", background: "var(--green-bg)", borderColor: "transparent" }}>✓ 已自动发布 {synced} 条到团队</div> : null}
+      {synced ? <div className="note" style={{ color: "var(--green)", background: "var(--green-bg)", borderColor: "transparent" }}>已发布 {synced} 条</div> : null}
       <section className="box">
         {events.length ? [...groups.entries()].map(([day, evs]) => (
           <div key={day}>
@@ -86,7 +85,7 @@ export default async function Activity({ searchParams }: { searchParams: Promise
               </div>
             ))}
           </div>
-        )) : <div className="empty"><b>还没有动态</b><p>大家同步 AI 对话、确认共识、推进任务后，会按时间出现在这里。</p></div>}
+        )) : <div className="empty"><p>暂无动态</p></div>}
       </section>
     </>
   );

@@ -18,7 +18,7 @@ export default async function Ideas() {
       <div className="ph">
         <div>
           <h1>想法</h1>
-          <p>还没想清楚的东西先放这里：默认只有自己看得到。成熟了就一键分享，或者转成决策、任务、待定问题进入团队流程。你的 AI 也能读到它们（仅在「我的」上下文里）。</p>
+          <p className="ph-meta"><span>默认仅自己可见</span><span>可分享，或转成决策 / 任务</span></p>
         </div>
       </div>
       <IdeaInput projects={projects.map((p) => ({ id: p.id, name: p.name }))} />
@@ -35,7 +35,7 @@ export default async function Ideas() {
               </article>
             ))}
           </div>
-        ) : <div className="box"><div className="empty"><p>还没有想法。随手记下的灵感、疑虑、方案草稿都可以放这里。</p></div></div>}
+        ) : <div className="box"><div className="empty"><p>暂无想法</p></div></div>}
       </section>
       {shared.length ? (
         <section className="stack" style={{ gap: 10 }}>

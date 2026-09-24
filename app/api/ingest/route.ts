@@ -3,7 +3,7 @@ import { ingestConversation } from "@/lib/core";
 import { CORS, json, userFromRequest } from "@/lib/token";
 import { SOURCES } from "@/lib/meta";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const Body = z.object({
   source: z.string().default("other"),

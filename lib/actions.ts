@@ -57,7 +57,7 @@ export async function publishConversation(convId: number, picks: core.Pick[], pr
   const me = await requireUser();
   return run(async () => {
     const r = await core.publishConversation(me, convId, picks, projectId);
-    return r.published ? `已发布 ${r.published} 条到团队` : "已归档，没有发布任何条目";
+    return r.published ? `已发布 ${r.published} 条` : "已归档";
   });
 }
 
@@ -65,7 +65,7 @@ export async function keepPrivate(convId: number) {
   const me = await requireUser();
   return run(async () => {
     await core.keepPrivate(me, convId);
-    return "已保存，只有你自己能看到";
+    return "已设为仅自己可见";
   });
 }
 
@@ -84,7 +84,7 @@ export async function agree(itemId: number) {
   return run(async () => {
     await core.ack(me, itemId, "agree");
     const item = await core.getItem(itemId);
-    return item?.status === "confirmed" ? "已达成共识 ✓" : "已记录你的同意";
+    return item?.status === "confirmed" ? "已生效" : "已同意";
   });
 }
 
@@ -93,18 +93,19 @@ export async function object(itemId: number, comment: string) {
   return run(async () => {
     await core.ack(me, itemId, "object", comment.slice(0, 300));
     await core.addComment(me, itemId, `提出异议：${comment.slice(0, 300)}`);
-    return "已记录异议，创建者会看到";
+    return "已提交";
   });
 }
 
 export async function confirmNow(itemId: number) {
   const me = await requireUser();
   return run(async () => {
+    await core.assertVisible(me.id, itemId);
     const item = await core.getItem(itemId);
     if (!item) throw new Error("找不到决策");
     if (item.owner_id !== me.id && me.role !== "admin") throw new Error("只有创建者或管理员可以直接拍板");
     await core.confirmDecision(itemId, me);
-    return "已拍板，形成共识";
+    return "已生效";
   });
 }
 
@@ -119,10 +120,11 @@ export async function resolveConflict(itemId: number, keep: "this" | "other") {
 export async function reopenDecision(itemId: number) {
   const me = await requireUser();
   return run(async () => {
+    await core.assertVisible(me.id, itemId);
     await q("update items set status = 'discussing', superseded_by = null, updated_at = now() where id = $1 and kind = 'decision'", [itemId]);
     await q("delete from acks where item_id = $1 and user_id <> $2", [itemId, me.id]);
     await core.logEvent(me.id, "reopen", "重新打开讨论", itemId);
-    return "已重新打开讨论";
+    return "已重新打开";
   });
 }
 
@@ -133,7 +135,7 @@ export async function createItem(input: Omit<core.NewItem, "source">) {
   if (!input.title.trim()) return { ok: false, error: "请填写标题" } as Result;
   return run(async () => {
     await core.createItem(me, { ...input, title: input.title.trim() });
-    return input.kind === "idea" ? "已记下，只有你自己可见" : "已创建";
+    return input.kind === "idea" ? "已保存" : "已创建";
   });
 }
 
@@ -166,6 +168,7 @@ export async function deleteItem(itemId: number) {
 export async function resolveQuestion(itemId: number) {
   const me = await requireUser();
   return run(async () => {
+    await core.assertVisible(me.id, itemId);
     await q("update items set status = 'resolved', updated_at = now() where id = $1 and kind = 'question'", [itemId]);
     await core.logEvent(me.id, "resolve", "问题已解决", itemId);
     return "已标记为解决";
@@ -222,7 +225,7 @@ export async function testNotification() {
   const me = await requireUser();
   return run(async () => {
     const on = await notifyStrict("SimReal Sync 通知测试", [`${me.name} 刚刚测试了团队通知。之后新决策、冲突、达成共识和每日简报都会发到这里。`], "/");
-    return `测试消息已发送（${on.length} 个渠道）`;
+    return `已发送（${on.length} 个渠道）`;
   });
 }
 
@@ -230,7 +233,7 @@ export async function setAutoPublish(on: boolean) {
   const me = await requireUser();
   return run(async () => {
     await q("update users set auto_publish = $2 where id = $1", [me.id, on]);
-    return on ? "已开启自动发布：同步后直接发给团队，敏感内容仍会留在收件箱" : "已关闭自动发布：同步的内容先进收件箱";
+    return on ? "已开启自动发布" : "已关闭自动发布";
   });
 }
 
@@ -272,7 +275,7 @@ export async function inviteMember(email: string, name: string) {
   return run(async () => {
     if (me.role !== "admin") throw new Error("只有管理员可以邀请成员");
     await q("insert into users (email, name, invited) values ($1, $2, true) on conflict (email) do nothing", [e, name.trim() || e.split("@")[0]]);
-    return `已邀请 ${e}，把网址发给 TA 登录即可`;
+    return `已邀请 ${e}`;
   });
 }
 
@@ -318,7 +321,7 @@ export async function regenerateToken() {
   const me = await requireUser();
   return run(async () => {
     await q("update users set api_token = $2 where id = $1", [me.id, `sr_${randomBytes(24).toString("base64url")}`]);
-    return "已生成新的个人密钥，旧的已失效";
+    return "密钥已重置";
   });
 }
 
@@ -375,7 +378,7 @@ export async function carryOverGoals(fromWeek: string, toWeek: string) {
   const me = await requireUser();
   return run(async () => {
     const n = await core.carryOverGoals(me, fromWeek, toWeek);
-    return n ? `已把 ${n} 个未完成目标带到本周` : "没有需要延续的目标";
+    return n ? `已延续 ${n} 个目标` : "没有未完成的目标";
   });
 }
 
@@ -387,7 +390,7 @@ export async function saveTeamBrief(text: string) {
     await core.setSetting("team_brief", text.slice(0, 8000));
     await core.setSetting("team_brief_meta", JSON.stringify({ by: me.name, at: new Date().toISOString() }));
     await core.logEvent(me.id, "context", "更新了团队档案");
-    return "团队档案已保存，所有 AI 下次读取时生效";
+    return "已保存";
   });
 }
 
@@ -396,7 +399,7 @@ export async function saveProjectContext(projectId: number, text: string) {
   return run(async () => {
     await q("update projects set context = $2 where id = $1", [projectId, text.slice(0, 6000)]);
     await core.logEvent(me.id, "context", "更新了项目背景");
-    return "项目背景已保存";
+    return "已保存";
   });
 }
 
@@ -409,7 +412,7 @@ export async function rotateContextKey() {
   const me = await requireUser();
   return run(async () => {
     await q("update users set context_key = $2 where id = $1", [me.id, `ctx_${randomBytes(18).toString("base64url")}`]);
-    return "已生成新的只读链接，旧链接失效";
+    return "链接已重置";
   });
 }
 
@@ -436,6 +439,6 @@ export async function pushWeeklyReview(week: string) {
       ...done.slice(0, 12).map((d) => `✓ ${d.title}${d.who ? `（${d.who}）` : ""}`),
       ...(decided.length ? ["", `**达成 ${decided.length} 项共识**`, ...decided.slice(0, 8).map((d) => `• ${code("decision", d.id)} ${d.title}`)] : []),
     ], `/week?w=${mon}`);
-    return "本周回顾已发到群";
+    return "已发到群";
   });
 }

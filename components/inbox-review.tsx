@@ -55,14 +55,14 @@ export function InboxReview({ conv, drafts, projects }: { conv: Conv; drafts: Dr
               ) : (
                 <>
                   <input className="title-in" value={r.title} onChange={(e) => upd(r.id, { title: e.target.value })} aria-label="标题" />
-                  <input className="title-in s" style={{ fontWeight: 400 }} value={r.body} placeholder="补充理由（可选）" onChange={(e) => upd(r.id, { body: e.target.value })} aria-label="理由" />
+                  <input className="title-in s" style={{ fontWeight: 400 }} value={r.body} placeholder="理由（可选）" onChange={(e) => upd(r.id, { body: e.target.value })} aria-label="理由" />
                   {r.subtasks.length ? <span className="s">子任务：{r.subtasks.join(" · ")}</span> : null}
-                  {r.sensitive ? <span className="s warn">⚠ 可能包含敏感信息，默认不发布</span> : null}
+                  {r.sensitive ? <span className="s warn">可能含敏感信息</span> : null}
                 </>
               )}
             </div>
           </div>
-        )) : <div className="note">这段对话里没有提炼出需要同步的结论。可以直接归档，或者手动在「共识」页记录。</div>}
+        )) : <div className="note">没有提炼出结论</div>}
       </div>
 
       <div className="acts">
@@ -73,13 +73,13 @@ export function InboxReview({ conv, drafts, projects }: { conv: Conv; drafts: Dr
         </select>
         <span className="grow" />
         <button className="btn ghost" disabled={pending} onClick={() => start(async () => { const r = await discardConversation(conv.id); report(r); if (r.ok) after(); })}>丢弃</button>
-        <button className="btn" disabled={pending} onClick={() => start(async () => { const r = await keepPrivate(conv.id); report(r); if (r.ok) after(); })}><Icon name="lock" />仅自己可见</button>
+        <button className="btn" disabled={pending} onClick={() => start(async () => { const r = await keepPrivate(conv.id); report(r); if (r.ok) after(); })}><Icon name="lock" />仅自己</button>
         <button className="btn pri" disabled={pending} onClick={() => start(async () => {
           const r = await publishConversation(conv.id, rows.map((x) => ({ id: x.id, include: x.include, kind: x.kind === "update" ? undefined : x.kind, title: x.title, body: x.body })), Number(project) || null);
           report(r);
           if (r.ok) after();
         })}>
-          {pending ? <span className="spin" /> : null}发布{n ? ` ${n} 条` : ""}到团队
+          {pending ? <span className="spin" /> : null}发布{n ? ` ${n} 条` : ""}
         </button>
       </div>
     </section>

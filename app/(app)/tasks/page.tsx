@@ -43,10 +43,10 @@ export default async function Tasks({ searchParams }: { searchParams: Promise<{ 
       <div className="ph">
         <div>
           <h1>任务{project ? ` · ${project.name}` : ""}</h1>
-          <p>
-            {tasks.length ? `整体完成 ${total ? Math.round((done / total) * 100) : 0}%` : "任务会从 AI 对话里自动抽取"}
-            {thisWeek ? ` · 本周到期 ${thisWeek} 个` : ""}
-            {overdue ? <span style={{ color: "var(--red)" }}> · 逾期 {overdue} 个</span> : null}
+          <p className="ph-meta">
+            <span>完成 {total ? Math.round((done / total) * 100) : 0}%</span>
+            {thisWeek ? <span>本周到期 {thisWeek}</span> : null}
+            {overdue ? <span className="bad">逾期 {overdue}</span> : null}
           </p>
         </div>
         <NewItemButton kind="task" projects={projects} members={activeMembers} decisions={openDecisions} goals={goals.map((g) => ({ id: g.id, title: g.title }))} defaultProject={projectId} />
@@ -97,10 +97,10 @@ export default async function Tasks({ searchParams }: { searchParams: Promise<{ 
             const next = [...open].sort((a, b) => (a.due_date ?? "9999") < (b.due_date ?? "9999") ? -1 : 1).slice(0, 5);
             return (
               <section key={m.id} className="box person">
-                <div className="person-h"><Avatar id={m.id} name={m.name} lg /><b>{m.name}</b>{m.id === me.id ? <span className="muted">（我）</span> : null}</div>
+                <div className="person-h"><Avatar id={m.id} name={m.name} lg /><b>{m.name}</b>{m.id === me.id ? <span className="pill">我</span> : null}</div>
                 <div className="person-stats">
                   <span><b>{open.length}</b>未完成</span>
-                  <span><b>{week.length}</b>7 天内到期</span>
+                  <span><b>{week.length}</b>7 天内</span>
                   <span className={late.length ? "bad" : ""}><b>{late.length}</b>逾期</span>
                   <span><b>{counts.done}</b>已完成</span>
                 </div>
@@ -114,7 +114,7 @@ export default async function Tasks({ searchParams }: { searchParams: Promise<{ 
                   <ul className="plist">
                     {next.map((t) => <li key={t.id}><span className={`dot-s s-${t.status}`} /><Link href={`/item/${t.id}`}>{t.title}</Link><DueChip date={t.due_date} status={t.status} today={today} /></li>)}
                   </ul>
-                ) : <p className="muted" style={{ margin: 0, fontSize: 12.5 }}>手上没有未完成的任务</p>}
+                ) : <p className="muted" style={{ margin: 0, fontSize: 12.5 }}>没有未完成的任务</p>}
               </section>
             );
           })}
