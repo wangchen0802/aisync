@@ -6,7 +6,9 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/session";
 import * as core from "@/lib/core";
 import { one, q } from "@/lib/db";
-import { aiEnabled, askWithAI } from "@/lib/ai";
+import { aiEnabled, askWithAI, draftOutreachWithAI } from "@/lib/ai";
+import * as out from "@/lib/outreach";
+import { fmtMoney, pipelineOf, stageLabel, type Pipeline } from "@/lib/outreach-meta";
 import { buildDigest, pushDigest } from "@/lib/digest";
 import { notifyStrict } from "@/lib/notify";
 import { code, PROJECT_COLORS, type Subtask } from "@/lib/meta";
@@ -441,4 +443,105 @@ export async function pushWeeklyReview(week: string) {
     ], `/week?w=${mon}`);
     return "已发到群";
   });
+}
+
+/* ───────────── fundraising & outreach ───────────── */
+
+export async function saveContact(input: out.ContactInput) {
+  const me = await requireUser();
+  let id = 0;
+  const r = await run(async () => {
+    id = await out.saveContact(me, input);
+    return input.id ? "已保存" : "已添加";
+  });
+  return r.ok ? { ...r, id } : r;
+}
+
+export async function moveContact(id: number, stage: string) {
+  const me = await requireUser();
+  return run(async () => { await out.moveContact(me, id, stage); });
+}
+
+export async function advanceContact(id: number) {
+  const me = await requireUser();
+  return run(async () => `→ ${await out.advanceContact(me, id)}`);
+}
+
+export async function logTouch(id: number, input: { kind: string; body: string; nextStep?: string; nextDate?: string | null; stage?: string }) {
+  const me = await requireUser();
+  return run(async () => {
+    await out.logTouch(me, id, input);
+    return "已记录";
+  });
+}
+
+export async function deleteContact(id: number) {
+  const me = await requireUser();
+  return run(async () => {
+    await out.deleteContact(me, id);
+    return "已删除";
+  });
+}
+
+export async function saveRound(input: { id?: number; name: string; target: string; currency: string; instrument: string; valuation: string; closeDate: string | null; status?: string }) {
+  const me = await requireUser();
+  return run(async () => {
+    await out.saveRound(me, input);
+    return input.id ? "已保存" : "已开启新一轮";
+  });
+}
+
+export async function setInvestorAccess(v: "all" | "admins") {
+  const me = await requireUser();
+  if (me.role !== "admin") return { ok: false, error: "只有管理员可以修改" } as Result;
+  return run(async () => {
+    await core.setSetting("outreach_investor_access", v);
+    return v === "admins" ? "融资只对管理员可见" : "融资对全员可见";
+  });
+}
+
+export async function importContacts(pipeline: Pipeline, text: string) {
+  const me = await requireUser();
+  return run(async () => {
+    const r = await out.importContacts(me, pipeline, text);
+    return `导入 ${r.added} 个${r.skipped ? `，跳过 ${r.skipped} 个（重复或空行）` : ""}`;
+  });
+}
+
+export async function previewImport(text: string) {
+  await requireUser();
+  const rows = out.parseCSV(text).slice(0, 6);
+  if (!rows.length) return { columns: [] as string[], rows: 0 };
+  const map = out.mapColumns(rows[0]);
+  const LABEL: Record<string, string> = { org: "机构", name: "联系人", title: "职位", email: "邮箱", handle: "联系方式", link: "链接", stage: "阶段", amount: "金额", heat: "热度", introBy: "引荐人", notes: "备注", owner: "负责人" };
+  const hasHeader = Object.values(map).some((k) => k === "org" || k === "name");
+  const total = out.parseCSV(text).length - (hasHeader ? 1 : 0);
+  return { columns: hasHeader ? Object.values(map).map((k) => LABEL[k] ?? k) : ["机构", "联系人", "邮箱"], rows: total };
+}
+
+export async function draftFollowUp(id: number, lang: "zh" | "en") {
+  const me = await requireUser();
+  const c = await out.getContact(me, id);
+  if (!c) return { ok: false as const, error: "找不到联系人" };
+  const [touches, brief, round] = await Promise.all([out.listTouches(id, 8), core.getSetting("team_brief", ""), c.pipeline === "investor" ? out.activeRound() : null]);
+  const p = pipelineOf(c.pipeline);
+  const purpose = c.pipeline === "investor"
+    ? `融资跟进${round ? `（${round.name}${round.target ? `，目标 ${fmtMoney(round.target, round.currency)}` : ""}${round.instrument ? `，${round.instrument}` : ""}）` : ""}，当前阶段：${stageLabel(c.pipeline, c.stage)}`
+    : `${p.label}跟进，当前阶段：${stageLabel(c.pipeline, c.stage)}`;
+  const contact = [c.name && `姓名：${c.name}`, c.org && `机构：${c.org}`, c.title && `职位：${c.title}`, c.intro_by && `引荐人：${c.intro_by}`, c.notes && `备注：${c.notes.slice(0, 600)}`].filter(Boolean).join("\n");
+  const history = touches.filter((t) => t.kind !== "stage").map((t) => `${t.created_at.slice(0, 10)} ${t.user_name ?? ""}（${t.kind}）：${t.body.slice(0, 400)}`).join("\n");
+  const first = (c.name || c.org).split(/\s/)[0];
+  if (aiEnabled()) {
+    try {
+      const text = await draftOutreachWithAI({ lang, company: brief.slice(0, 2500), purpose, contact, history, next: c.next_step });
+      return { ok: true as const, text: text.replaceAll("{我的名字}", me.name), ai: true };
+    } catch (e) {
+      console.error("draftFollowUp failed", e);
+    }
+  }
+  const last = touches.find((t) => t.kind !== "stage");
+  const text = lang === "en"
+    ? `Subject: Following up${last ? " on our conversation" : ""}\n\nHi ${first},\n\n${last ? `Thanks again for the time on ${last.created_at.slice(5, 10)}. ` : ""}${c.next_step ? `As a next step: ${c.next_step}. ` : ""}Happy to send anything that would help — would a quick call next week work?\n\nBest,\n${me.name}`
+    : `主题：跟进${last ? "上次的沟通" : ""}\n\n${first}您好，\n\n${last ? `感谢 ${last.created_at.slice(5, 10)} 的交流。` : ""}${c.next_step ? `下一步我们计划：${c.next_step}。` : ""}如果需要材料我随时发，下周方便再约 20 分钟吗？\n\n${me.name}`;
+  return { ok: true as const, text, ai: false };
 }

@@ -203,3 +203,23 @@ export async function askWithAI(question: string, context: string): Promise<stri
   if (res.stop_reason === "refusal") return "这个问题暂时无法回答。";
   return res.content.map((b) => (b.type === "text" ? b.text : "")).join("").trim();
 }
+
+/* ───────────── outreach drafts ───────────── */
+
+export async function draftOutreachWithAI(input: { lang: "zh" | "en"; company: string; purpose: string; contact: string; history: string; next: string }): Promise<string> {
+  const res = await client().messages.create({
+    model: MODEL(),
+    max_tokens: 3000,
+    thinking: { type: "adaptive" },
+    output_config: { effort: "low" },
+    system:
+      `你帮创业公司的创始人写一封跟进邮件。要求：${input.lang === "en" ? "用英文写。" : "用中文写。"}` +
+      "第一行是「主题：…」（英文写 Subject: …），空一行后是正文。正文 80–160 字（英文 60–120 词），像创始人本人写的：具体、直接、有礼貌，" +
+      "引用最近一次沟通里的具体内容，给出一个明确的下一步（时间或材料）。不要客套话堆砌，不要夸张形容词，不要编造数字或事实；没有的信息就不写。署名留「{我的名字}」。",
+    messages: [{
+      role: "user",
+      content: `公司背景：\n${input.company || "（未填写）"}\n\n目的：${input.purpose}\n\n对方：\n${input.contact}\n\n沟通记录（新的在前）：\n${input.history || "（还没有记录）"}\n\n计划的下一步：${input.next || "（未定）"}`,
+    }],
+  });
+  return res.content.map((b) => (b.type === "text" ? b.text : "")).join("").trim();
+}

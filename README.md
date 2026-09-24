@@ -4,6 +4,7 @@
 
 - **四层记忆 + 上下文引擎**：团队档案、项目背景、实时状态（目标、共识、任务、DDL）、对话存档。任何 AI 通过 MCP、插件、只读链接、.md 文件读到同一份团队记忆（「记忆」页可以预览 AI 实际读到的内容）。
 - **团队管理**：本周目标（团队 / 个人，进度自动计算）、DDL、时间线（甘特图）、按人看工作量、本周回顾；个人想法默认私有，可一键分享或转成任务。
+- **融资与外联**：融资、客户、合作、招聘四条管道。看板 / 列表、本轮进度（已到账 / 已承诺 / 谈条款 / 加权管道）、漏斗转化、每次沟通的记录、下一步和跟进日期；到期或 14 天没联系会提醒（总览、Lark 早间私信）。支持从表格粘贴 / CSV 导入、导出 CSV，AI 根据沟通记录起草跟进邮件。融资可以设为仅管理员可见。
 - **Lark**：Lark 登录、群卡片通知、个人私信提醒（每天 9:00 的 DDL 和待确认）。
 - **共识**：从 AI 对话中提炼决策，队友确认后形成共识；和已有共识矛盾时自动标出冲突。
 - **任务进度**：任务从对话中抽取，之后谁在任何 AI 里继续推进，进度自动更新。支持看板、子任务、依赖和阻塞。
@@ -92,9 +93,10 @@
 ### API
 
 - `POST /api/ingest`（`Authorization: Bearer sr_...`）：`{ source, title?, url?, text }`，把对话放进收件箱
-- `POST /api/mcp`：MCP（Streamable HTTP）。工具：`search_team_memory`、`get_team_context`、`get_my_work`、`log_decision`、`create_task`、`update_task`、`sync_conversation`
+- `POST /api/mcp`：MCP（Streamable HTTP）。工具：`search_team_memory`、`get_team_context`、`get_my_work`、`get_pipeline`、`log_outreach`、`log_decision`、`create_task`、`update_task`、`sync_conversation`
 - `GET /api/context?scope=team|project|me&project=<id>&topic=<话题>`：纯文本的团队上下文包
 - `GET /c/<链接密钥>`：只读上下文链接（「记忆」页可以重置）
+- `GET /api/outreach/export?p=investor|customer|partner|talent`：导出 CSV（登录后）
 - `GET /api/health`：部署自检（只返回是否配置，不返回值）
 
 ---

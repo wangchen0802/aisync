@@ -31,6 +31,7 @@ const PATHS: Record<string, string> = {
   menu: '<path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/>',
   send: '<path d="M2.5 8 13.5 2.5 11 13.5 8 9z"/><path d="m8 9 5.5-6.5"/>',
   back: '<path d="M10 3.5 5.5 8l4.5 4.5"/>',
+  target: '<circle cx="8" cy="8" r="5.75"/><circle cx="8" cy="8" r="2.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2"/>',
   phone: '<rect x="4.5" y="1.5" width="7" height="13" rx="1.5"/><path d="M7 12.5h2"/>',
 };
 

@@ -122,6 +122,50 @@ create table if not exists goals (
 );
 create index if not exists goals_week_idx on goals(week);
 create index if not exists conversations_key_idx on conversations(user_id, external_key);
+create table if not exists rounds (
+  id serial primary key,
+  name text not null,
+  target double precision not null default 0,
+  currency text not null default 'USD',
+  instrument text not null default '',
+  valuation text not null default '',
+  close_date date,
+  status text not null default 'active',
+  created_at timestamptz not null default now()
+);
+create table if not exists contacts (
+  id serial primary key,
+  pipeline text not null default 'investor',
+  name text not null default '',
+  org text not null default '',
+  title text not null default '',
+  email text not null default '',
+  handle text not null default '',
+  link text not null default '',
+  stage text not null default 'target',
+  heat text not null default 'warm',
+  owner_id int references users(id) on delete set null,
+  round_id int references rounds(id) on delete set null,
+  amount double precision,
+  source text not null default '',
+  intro_by text not null default '',
+  next_step text not null default '',
+  next_date date,
+  last_touch_at timestamptz,
+  notes text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists contacts_pipeline_idx on contacts(pipeline, stage);
+create table if not exists touches (
+  id serial primary key,
+  contact_id int references contacts(id) on delete cascade,
+  user_id int references users(id) on delete set null,
+  kind text not null default 'note',
+  body text not null default '',
+  created_at timestamptz not null default now()
+);
+create index if not exists touches_contact_idx on touches(contact_id, created_at desc);
 `;
 
 const g = globalThis as unknown as { __simrealPool?: Pool; __simrealSchema?: Promise<void> };

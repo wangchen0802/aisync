@@ -1,7 +1,9 @@
 import { buildContext, contextPack, createItem, getItem, ingestConversation, itemLine, listProjects, logEvent, moveTask, search, type Actor } from "@/lib/core";
 import { one, q } from "@/lib/db";
 import { CORS, json, userFromRequest } from "@/lib/token";
-import { TASK_STATUS, type Subtask } from "@/lib/meta";
+import { parseDue, TASK_STATUS, todayISO, type Subtask } from "@/lib/meta";
+import { activeRound, canSee, contactLine, findContact, followUps, listContacts, logTouch, roundStats, saveContact, visiblePipelines } from "@/lib/outreach";
+import { fmtMoney, pipelineOf, stagesOf, type Pipeline } from "@/lib/outreach-meta";
 
 // Minimal stateless MCP server (Streamable HTTP, JSON responses) exposing the team memory.
 export const maxDuration = 120;
@@ -64,6 +66,36 @@ const TOOLS = [
     },
   },
   {
+    name: "get_pipeline",
+    description: "查看融资 / 客户 / 合作 / 招聘管道：每个联系人的阶段、金额、负责人、下一步、最近联系时间，以及本轮融资进度。写投资人更新、准备会议、安排跟进前调用。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        pipeline: { type: "string", enum: ["investor", "customer", "partner", "talent"], description: "默认 investor（融资）" },
+        only_follow_up: { type: "boolean", description: "只返回需要跟进的（到期或 14 天没联系）" },
+        query: { type: "string", description: "按机构或人名筛选，可选" },
+      },
+    },
+  },
+  {
+    name: "log_outreach",
+    description: "记录一次和投资人、客户、合作方或候选人的沟通（邮件、会议、电话、消息），并更新下一步和跟进日期；也可以推进阶段。找不到这个人时会新建。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        who: { type: "string", description: "机构名或人名，例如「红杉」「张三」" },
+        note: { type: "string", description: "这次沟通的要点" },
+        kind: { type: "string", enum: ["email", "meeting", "call", "message", "note"] },
+        next_step: { type: "string", description: "下一步，例如「周五前发数据室」" },
+        next_date: { type: "string", description: "跟进日期，YYYY-MM-DD 或「周五」「下周三」" },
+        stage: { type: "string", description: "新阶段，可用中文，如「已见面」「尽调」「谈条款」「已承诺」" },
+        pipeline: { type: "string", enum: ["investor", "customer", "partner", "talent"], description: "新建时使用，默认 investor" },
+        amount: { type: "string", description: "金额，如 500k / 300万，可选" },
+      },
+      required: ["who"],
+    },
+  },
+  {
     name: "sync_conversation",
     description: "把当前对话的要点发送到 SimReal 收件箱，由用户审核后发布给团队。text 应包含对话中的关键讨论与结论。",
     inputSchema: { type: "object", properties: { title: { type: "string" }, text: { type: "string" } }, required: ["text"] },
@@ -119,6 +151,48 @@ async function callTool(me: Actor, name: string, a: Record<string, unknown>, cli
       const t = await getItem(id);
       return `T-${id} 已更新（${TASK_STATUS[t!.status]}${t!.subtasks.length ? ` ${t!.subtasks.filter((s) => s.done).length}/${t!.subtasks.length}` : ""}）`;
     }
+    case "get_pipeline": {
+      const p = pipelineOf(a.pipeline as string).key;
+      if (!(await canSee(me, p))) return "你没有查看融资管道的权限。";
+      let cs = await listContacts(p);
+      const qy = a.query ? String(a.query).toLowerCase() : "";
+      if (qy) cs = cs.filter((c) => `${c.org} ${c.name}`.toLowerCase().includes(qy));
+      if (a.only_follow_up) cs = followUps(cs).map((f) => f.c);
+      const lines: string[] = [];
+      if (p === "investor") {
+        const r = await activeRound();
+        const s = roundStats(await listContacts("investor"), r);
+        const cur = r?.currency ?? "USD";
+        lines.push(`# 融资${r ? `：${r.name}` : ""}`, `目标 ${fmtMoney(s.target, cur)} · 已到账 ${fmtMoney(s.closed, cur)} · 已承诺 ${fmtMoney(s.committed, cur)} · 谈条款 ${fmtMoney(s.termSheet, cur)} · 加权管道 ${fmtMoney(s.weighted, cur)}${r?.close_date ? ` · 目标关账 ${r.close_date}` : ""}`, "");
+      }
+      const order = stagesOf(p).map((x) => x.key);
+      cs.sort((x, y) => order.indexOf(y.stage) - order.indexOf(x.stage));
+      lines.push(...cs.slice(0, 80).map((c) => contactLine(c)));
+      if (cs.length > 80) lines.push(`…还有 ${cs.length - 80} 个`);
+      return lines.length ? lines.join("\n") : "管道里还没有联系人。";
+    }
+    case "log_outreach": {
+      const pipes = await visiblePipelines(me);
+      const want = a.pipeline ? pipelineOf(String(a.pipeline)).key : undefined;
+      let c = await findContact(me, String(a.who ?? ""), want);
+      const pipeline: Pipeline = c?.pipeline ?? want ?? "investor";
+      if (!pipes.includes(pipeline)) return "你没有权限记录融资沟通。";
+      const stage = a.stage ? stagesOf(pipeline).find((x) => x.key === a.stage || x.label === String(a.stage).trim())?.key : undefined;
+      const nextDate = a.next_date ? (/^\d{4}-\d{2}-\d{2}$/.test(String(a.next_date)) ? String(a.next_date) : parseDue(String(a.next_date), todayISO())) : undefined;
+      let created = false;
+      if (!c) {
+        const id = await saveContact(me, { pipeline, org: String(a.who), name: "", stage: stage ?? "contacted", amount: a.amount ? String(a.amount) : null });
+        c = (await listContacts(pipeline)).find((x) => x.id === id) ?? null;
+        created = true;
+      }
+      if (!c) return "记录失败";
+      await logTouch(me, c.id, {
+        kind: String(a.kind ?? "note"), body: String(a.note ?? ""),
+        nextStep: a.next_step !== undefined ? String(a.next_step) : undefined, nextDate: nextDate === undefined ? undefined : nextDate,
+        stage: created ? undefined : stage,
+      }).catch((e) => { if (!created) throw e; });
+      return `${created ? "已新建并记录" : "已记录"}：${c.org || c.name}${stage ? ` → ${stagesOf(pipeline).find((x) => x.key === stage)?.label}` : ""}${nextDate ? `，${nextDate} 跟进` : ""}。${origin}/outreach/${c.id}`;
+    }
     case "sync_conversation": {
       const r = await ingestConversation(me, { source: src, title: a.title ? String(a.title) : undefined, text: String(a.text ?? "") });
       return r.unchanged ? "没有新内容需要同步。" : r.auto ? `已自动发布 ${r.published} 条到团队：${origin}/activity` : `已发送到收件箱（提炼出 ${r.items} 条，${r.updates} 个任务进度），请在这里审核发布：${origin}/inbox?c=${r.id}`;
@@ -141,7 +215,7 @@ async function handle(me: Actor, msg: Rpc, origin: string, clientName: { v: stri
         protocolVersion: (msg.params?.protocolVersion as string) || "2025-06-18",
         capabilities: { tools: { listChanged: false }, resources: { listChanged: false } },
         serverInfo: { name: "simreal-sync", version: "0.1.0" },
-        instructions: "SimReal 是团队的共享记忆。开始任务前先调用 get_team_context（带上 topic）了解团队档案、本周目标和已确认的共识；拿不准时用 search_team_memory 查。做出决策后用 log_decision 记录，推进任务后用 update_task 更新进度。建议不要与「已确认的共识」冲突，冲突时要明确指出编号。",
+        instructions: "SimReal 是团队的共享记忆。开始任务前先调用 get_team_context（带上 topic）了解团队档案、本周目标和已确认的共识；拿不准时用 search_team_memory 查。做出决策后用 log_decision 记录，推进任务后用 update_task 更新进度。和投资人、客户、候选人沟通后用 log_outreach 记录，需要了解融资进度时用 get_pipeline。建议不要与「已确认的共识」冲突，冲突时要明确指出编号。",
       });
     }
     case "ping":

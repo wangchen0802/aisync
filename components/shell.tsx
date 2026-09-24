@@ -20,7 +20,7 @@ export function MobileTop({ ws, me, inbox, detail }: { ws: string; me: { id: num
   const path = usePathname();
   useEffect(() => setOpen(false), [path]);
   const links: [string, string, string, number?][] = [
-    ["/ideas", "想法", "edit"], ["/memory", "记忆 · 问团队", "ask"], ["/activity", "动态", "act"], ["/digest", "每日简报", "news"],
+    ["/outreach", "融资与外联", "target"], ["/ideas", "想法", "edit"], ["/memory", "记忆 · 问团队", "ask"], ["/activity", "动态", "act"], ["/digest", "每日简报", "news"],
     ["/import", "导入对话", "plus"], ["/connect", "连接 AI", "plug"], ["/settings", "设置", "gear"],
   ];
   return (

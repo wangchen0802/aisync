@@ -1,5 +1,5 @@
 import { q } from "@/lib/db";
-import { goalPct, listGoals } from "@/lib/core";
+import { getSetting, goalPct, listGoals } from "@/lib/core";
 import { dmUser, hasWebhook, lark, notify } from "@/lib/notify";
 import { code, fmtDue, todayISO, weekStart, weekday, addDays } from "@/lib/meta";
 
@@ -11,7 +11,8 @@ export async function GET(req: Request) {
   let dms = 0;
 
   if (lark.configured()) {
-    const users = await q<{ id: number; name: string }>("select id, coalesce(name, email) as name from users where lark_open_id is not null and not invited");
+    const users = await q<{ id: number; name: string; role: string }>("select id, coalesce(name, email) as name, role from users where lark_open_id is not null and not invited");
+    const investorAccess = await getSetting("outreach_investor_access", "all");
     for (const u of users) {
       const tasks = await q<{ id: number; title: string; due_date: string }>(
         `select id, title, due_date from items where kind = 'task' and visibility = 'team' and status <> 'done'
@@ -24,12 +25,19 @@ export async function GET(req: Request) {
            and not exists (select 1 from acks a where a.item_id = i.id and a.user_id = $1) order by i.created_at limit 5`,
         [u.id],
       );
-      if (!tasks.length && !waiting.length) continue;
+      const follow = await q<{ id: number; who: string; next_step: string; next_date: string }>(
+        `select id, coalesce(nullif(org, ''), name) as who, next_step, next_date from contacts
+         where owner_id = $1 and next_date is not null and next_date <= $2::date and stage not in ('closed', 'passed', 'won', 'lost')
+           and (pipeline <> 'investor' or $3 = 'admin' or $4 <> 'admins') order by next_date limit 8`,
+        [u.id, today, u.role, investorAccess],
+      );
+      if (!tasks.length && !waiting.length && !follow.length) continue;
       const lines = [
         ...tasks.map((t) => `${t.due_date < today ? "🔴" : "🟠"} **${fmtDue(t.due_date, today)}** · ${code("task", t.id)} ${t.title}`),
+        ...(follow.length ? ["", `**今天要跟进（${follow.length}）**`, ...follow.map((f) => `• ${f.next_date < today ? `🔴 ${fmtDue(f.next_date, today)} · ` : ""}${f.who}${f.next_step ? `：${f.next_step}` : ""}`)] : []),
         ...(waiting.length ? ["", `**等你确认的决策（${waiting.length}）**`, ...waiting.map((w) => `• ${code("decision", w.id)} ${w.title}（${w.owner}）`)] : []),
       ];
-      if (await dmUser(u.id, `早上好 ${u.name}，今天需要你关注 ${tasks.length + waiting.length} 件事`, lines, "/")) dms++;
+      if (await dmUser(u.id, `早上好 ${u.name}，今天需要你关注 ${tasks.length + waiting.length + follow.length} 件事`, lines, "/")) dms++;
     }
   }
 

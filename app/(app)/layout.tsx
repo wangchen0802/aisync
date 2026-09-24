@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const me = await requireUser();
-  const [[counts], projects, ws, base, baseSaved, allMembers, jar] = await Promise.all([q<{ inbox: number; attention: number; open_tasks: number; members: number; due_soon: number }>(
+  const [[counts], projects, ws, base, baseSaved, allMembers, jar] = await Promise.all([q<{ inbox: number; attention: number; open_tasks: number; members: number; due_soon: number; follow_ups: number }>(
     `select
        (select count(*)::int from conversations where user_id = $1 and status = 'pending') as inbox,
        (select count(*)::int from items i where i.kind = 'decision' and i.visibility = 'team'
@@ -22,8 +22,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
        (select count(*)::int from items where kind = 'task' and visibility = 'team' and status <> 'done') as open_tasks,
        (select count(*)::int from users where not invited) as members,
        (select count(*)::int from items where kind = 'task' and visibility = 'team' and status <> 'done' and assignee_id = $1
-          and due_date is not null and due_date <= (now() at time zone 'Asia/Shanghai')::date + 2) as due_soon`,
-    [me.id],
+          and due_date is not null and due_date <= (now() at time zone 'Asia/Shanghai')::date + 2) as due_soon,
+       (select count(*)::int from contacts where owner_id = $1 and next_date is not null and next_date <= (now() at time zone 'Asia/Shanghai')::date
+          and stage not in ('closed', 'passed', 'won', 'lost')
+          and (pipeline <> 'investor' or $2 = 'admin' or coalesce((select value from settings where key = 'outreach_investor_access'), 'all') <> 'admins')) as follow_ups`,
+    [me.id, me.role],
   ), q<{ id: number; name: string; color: string; done: number; total: number }>(
     `select p.id, p.name, p.color,
        coalesce(sum(case when jsonb_array_length(i.subtasks) = 0 then (i.status = 'done')::int
@@ -52,6 +55,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <NavLink href="/week" icon="bolt" label="本周" count={counts.due_soon} />
           <NavLink href="/tasks" icon="task" label="任务" count={counts.open_tasks} />
           <NavLink href="/consensus" icon="cons" label="共识" count={counts.attention} hot />
+          <NavLink href="/outreach" icon="target" label="融资与外联" count={counts.follow_ups} />
           <NavLink href="/ideas" icon="edit" label="想法" />
           <NavLink href="/memory" icon="ask" label="记忆" />
           <NavLink href="/inbox" icon="inbox" label="收件箱" count={counts.inbox} hot />

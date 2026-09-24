@@ -275,7 +275,7 @@ export function NewItemButton({
 
 type Hit = { id: number; kind: string; title: string; status: string; owner: string | null };
 const NAV_ITEMS: [string, string, string][] = [
-  ["/", "总览", "home"], ["/week", "本周", "bolt"], ["/tasks", "任务", "task"], ["/consensus", "共识", "cons"], ["/ideas", "想法", "edit"],
+  ["/", "总览", "home"], ["/week", "本周", "bolt"], ["/tasks", "任务", "task"], ["/consensus", "共识", "cons"], ["/ideas", "想法", "edit"], ["/outreach", "融资与外联", "target"],
   ["/memory", "记忆", "ask"], ["/inbox", "收件箱", "inbox"], ["/activity", "动态", "act"], ["/import", "导入对话", "plus"],
   ["/ask", "问团队记忆", "ask"], ["/digest", "每日简报", "news"], ["/connect", "连接 AI", "plug"], ["/settings", "设置", "gear"],
 ];
@@ -314,9 +314,11 @@ export function CommandPalette() {
   const items: { group: string; key: string; node: React.ReactNode; run: () => void }[] = [
     ...(q.trim() ? [{ group: "问团队记忆", key: "ask", node: <><Icon name="ask" /><span className="t">问：“{q}”</span></>, run: () => router.push(`/ask?q=${encodeURIComponent(q)}`) }] : []),
     ...hits.map((h) => ({
-      group: "共识与任务", key: `h${h.id}`,
-      node: <><Icon name={h.kind === "task" ? "task" : "cons"} /><span className="ref">{code(h.kind, h.id)}</span><span className="t">{h.title}</span><small>{h.kind === "task" ? TASK_STATUS[h.status] : DECISION_STATUS[h.status] ?? ""}{h.owner ? ` · ${h.owner}` : ""}</small></>,
-      run: () => router.push(`/item/${h.id}`),
+      group: h.kind === "contact" ? "联系人" : "共识与任务", key: `${h.kind}${h.id}`,
+      node: h.kind === "contact"
+        ? <><Icon name="target" /><span className="t">{h.title}</span><small>{h.status}{h.owner ? ` · ${h.owner}` : ""}</small></>
+        : <><Icon name={h.kind === "task" ? "task" : "cons"} /><span className="ref">{code(h.kind, h.id)}</span><span className="t">{h.title}</span><small>{h.kind === "task" ? TASK_STATUS[h.status] : DECISION_STATUS[h.status] ?? ""}{h.owner ? ` · ${h.owner}` : ""}</small></>,
+      run: () => router.push(h.kind === "contact" ? `/outreach/${h.id}` : `/item/${h.id}`),
     })),
     ...nav.map(([href, l, i]) => ({ group: "跳转", key: href, node: <><Icon name={i} /><span className="t">{l}</span></>, run: () => router.push(href) })),
   ];

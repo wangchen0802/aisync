@@ -5,6 +5,8 @@ import { goalPct, getSetting, listGoals, listItems, listMembers, listProjects, s
 import { agree, resolveConflict } from "@/lib/actions";
 import { addDays, ago, code, progressOf, todayISO, weekStart } from "@/lib/meta";
 import { ActionButton } from "@/components/client";
+import { myFollowUps } from "@/lib/outreach";
+import { Heat, LogTouchButton } from "@/components/outreach-client";
 import { Avatar, DueChip, Icon, Progress, Source } from "@/components/ui";
 
 export const metadata = { title: "总览" };
@@ -19,8 +21,9 @@ type Change = { id: number; type: string; text: string; created_at: string; user
 export default async function Home() {
   const me = await requireUser();
   const today = todayISO();
-  const [items, projects, members, since, goals, brief] = await Promise.all([
+  const [items, projects, members, since, goals, brief, follows] = await Promise.all([
     listItems(me.id, { limit: 600 }), listProjects(), listMembers(), sinceLastVisit(me.id), listGoals(me.id, weekStart(today)), getSetting("team_brief", ""),
+    myFollowUps(me, addDays(today, 7)),
   ]);
   const changes = await q<Change>(
     `select e.id, e.type, e.text, e.created_at, e.user_id, u.name, e.item_id, i.kind, i.title, c.title as conv_title
@@ -40,7 +43,9 @@ export default async function Home() {
   const urgent = mine.filter((t) => t.due_date && t.due_date <= today).sort((a, b) => (a.due_date! < b.due_date! ? -1 : 1));
   const blocked = mine.filter((t) => t.status === "blocked" && !urgent.includes(t));
   const dups = mine.filter((t) => t.duplicate_of);
-  const todo = conflicts.length + awaiting.length + urgent.length + blocked.length + dups.length;
+  const followNow = follows.filter((f) => f.next_date <= today);
+  const followSoon = follows.filter((f) => f.next_date > today);
+  const todo = conflicts.length + awaiting.length + urgent.length + blocked.length + dups.length + followNow.length;
   const upcoming = mine.filter((t) => t.due_date && t.due_date > today && t.due_date <= addDays(today, 7)).sort((a, b) => (a.due_date! < b.due_date! ? -1 : 1));
   const teamGoals = goals.filter((g) => g.scope === "team");
   const myGoals = goals.filter((g) => g.scope === "personal" && g.owner_id === me.id);
@@ -79,6 +84,7 @@ export default async function Home() {
           <p className="ph-meta">
             <span className={todo ? "hot" : ""}>{todo ? `${todo} 件待处理` : "没有待处理"}</span>
             {upcoming.length ? <span>{upcoming.length} 个任务 7 天内到期</span> : null}
+            {followSoon.length ? <span>{followSoon.length} 个跟进</span> : null}
             {changes.length ? <span>{changes.length} 条新动态</span> : null}
           </p>
         </div>
@@ -122,6 +128,16 @@ export default async function Home() {
                     <span className="at-ic" style={{ background: t.due_date! < today ? "var(--red-bg)" : "var(--amber-bg)", color: t.due_date! < today ? "var(--red)" : "var(--amber)" }}><Icon name="clock" /></span>
                     <div className="at-b">
                       <p><DueChip date={t.due_date} status={t.status} today={today} /> <Link href={`/item/${t.id}`}>{t.title}</Link></p>
+                    </div>
+                  </div>
+                ))}
+                {followNow.map((f) => (
+                  <div className="at" key={`f${f.id}`}>
+                    <span className="at-ic" style={{ background: f.next_date < today ? "var(--red-bg)" : "var(--amber-bg)", color: f.next_date < today ? "var(--red)" : "var(--amber)" }}><Icon name="target" /></span>
+                    <div className="at-b">
+                      <p><DueChip date={f.next_date} status="todo" today={today} /> 跟进 <Link href={`/outreach/${f.id}`}>{f.who}</Link></p>
+                      {f.next_step ? <p className="muted sm">{f.next_step}</p> : null}
+                      <div className="row"><LogTouchButton c={{ id: f.id, org: f.who, name: "", next_step: f.next_step, next_date: f.next_date }} /></div>
                     </div>
                   </div>
                 ))}
@@ -196,9 +212,11 @@ export default async function Home() {
 
           <section className="box">
             <div className="box-h"><h2>我的 DDL</h2><Link className="link" href="/tasks?v=timeline">时间线</Link></div>
-            {upcoming.length ? (
+            {upcoming.length || followSoon.length ? (
               <ul className="plist pad">
-                {upcoming.slice(0, 6).map((t) => <li key={t.id}><DueChip date={t.due_date} status={t.status} today={today} /><Link href={`/item/${t.id}`}>{t.title}</Link></li>)}
+                {[...upcoming.map((t) => ({ k: `t${t.id}`, d: t.due_date!, node: <><DueChip date={t.due_date} status={t.status} today={today} /><Link href={`/item/${t.id}`}>{t.title}</Link></> })),
+                  ...followSoon.map((f) => ({ k: `f${f.id}`, d: f.next_date, node: <><DueChip date={f.next_date} status="todo" today={today} /><Link href={`/outreach/${f.id}`}>跟进 {f.who}{f.next_step ? ` · ${f.next_step}` : ""}</Link><Heat h={f.heat} /></> }))]
+                  .sort((a, b) => (a.d < b.d ? -1 : 1)).slice(0, 8).map((x) => <li key={x.k}>{x.node}</li>)}
               </ul>
             ) : <div className="empty sm-empty"><p>7 天内没有到期</p></div>}
           </section>
