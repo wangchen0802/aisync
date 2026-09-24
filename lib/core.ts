@@ -1,7 +1,8 @@
 import "server-only";
 import { one, q, tx } from "@/lib/db";
+import { extractSelfDistilled, START as PROMPT_START } from "@/lib/selfdistill";
 import { aiEnabled, distillHeuristic, distillWithAI, findRelations, redact, type Distilled } from "@/lib/ai";
-import { addDays, code, DECISION_STATUS, estimateTokens, fmtDay, fmtDue, parseDue, type Subtask, TASK_STATUS, todayISO, weekStart } from "@/lib/meta";
+import { addDays, code, grams, DECISION_STATUS, estimateTokens, fmtDay, fmtDue, parseDue, type Subtask, TASK_STATUS, todayISO, weekStart } from "@/lib/meta";
 import { dmUser, notify } from "@/lib/notify";
 
 export type Actor = { id: number; name: string; email: string; role: string };
@@ -91,9 +92,14 @@ export type IngestResult = { id: number; items: number; updates: number; engine:
 
 export async function ingestConversation(
   actor: Actor,
-  input: { source: string; title?: string; url?: string; externalKey?: string; text: string; projectId?: number | null },
+  input: { source: string; title?: string; url?: string; externalKey?: string; text: string; projectId?: number | null; distilled?: Distilled | null },
 ): Promise<IngestResult> {
-  const { text: full, masked } = redact(input.text.slice(0, 400_000));
+  // The user's own AI may already have done the extraction (MCP structured call, or a pasted reply to our prompt).
+  const self = input.distilled
+    ? { distilled: input.distilled, conversation: input.text.includes(PROMPT_START) ? input.text.slice(0, input.text.lastIndexOf(PROMPT_START)) : input.text }
+    : extractSelfDistilled(input.text);
+  const rawText = self ? self.conversation || [self.distilled.title, self.distilled.summary].filter(Boolean).join("\n") : input.text;
+  const { text: full, masked } = redact(rawText.slice(0, 400_000));
   const key = input.externalKey?.slice(0, 300) || normKey(input.url);
 
   // Re-syncing the same conversation only processes what is new since the last sync.
@@ -105,7 +111,7 @@ export async function ingestConversation(
     if (previous) {
       const seen = new Set(previous.raw_text.split("\n").map((l) => l.trim()).filter(Boolean));
       const fresh = full.split("\n").filter((l) => l.trim() && !seen.has(l.trim())).join("\n");
-      if (fresh.replace(/\s|【[^】]{0,8}】|-{3,}/g, "").length < 30) {
+      if (!self && fresh.replace(/\s|【[^】]{0,8}】|-{3,}/g, "").length < 30) {
         return { id: previous.id, items: 0, updates: 0, engine: "none", masked, unchanged: true, published: 0, auto: false };
       }
       text = fresh;
@@ -125,7 +131,16 @@ export async function ingestConversation(
 
   let result: Distilled;
   let engine = "ai";
-  if (aiEnabled()) {
+  if (self) {
+    result = {
+      ...self.distilled,
+      items: self.distilled.items.map((i) => {
+        const t = redact(i.title), b = redact(i.body);
+        return { ...i, title: t.text, body: b.text, sensitive: i.sensitive || t.masked + b.masked > 0 };
+      }),
+    };
+    engine = "self";
+  } else if (aiEnabled()) {
     try {
       result = await distillWithAI(text.slice(0, 300_000), {
         author: actor.name,
@@ -147,6 +162,9 @@ export async function ingestConversation(
   if (known.length) {
     const k = new Set(known.map((t) => t.trim()));
     result.items = result.items.filter((i) => !k.has(i.title.trim()));
+  }
+  if (self && previous && !result.items.length && !result.task_updates.length) {
+    return { id: previous.id, items: 0, updates: 0, engine: "self", masked, unchanged: true, published: 0, auto: false };
   }
 
   const projectId = input.projectId ?? projects.find((p) => p.name === result.project)?.id ?? previous?.project_id ?? null;
@@ -570,14 +588,6 @@ export async function carryOverGoals(actor: Actor, fromWeek: string, toWeek: str
 
 /* ───────────── search & context ───────────── */
 
-function grams(s: string) {
-  const t = s.toLowerCase().replace(/\s+/g, " ");
-  const out = new Set<string>();
-  for (const w of t.split(/[^\p{L}\p{N}]+/u)) if (w.length > 1 && /^[a-z0-9]+$/.test(w)) out.add(w);
-  const cjk = t.replace(/[^\p{Script=Han}]/gu, "");
-  for (let i = 0; i < cjk.length - 1; i++) out.add(cjk.slice(i, i + 2));
-  return out;
-}
 
 export async function search(me: number, query: string, limit = 12) {
   const items = await listItems(me, { limit: 500 });

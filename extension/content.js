@@ -108,16 +108,95 @@
   }
   const send = (msg) => new Promise((res) => chrome.runtime.sendMessage(msg, (r) => res(r || { ok: false, error: chrome.runtime.lastError?.message || "扩展未响应，请刷新页面" })));
 
+  /* ───────── "use my own AI": the page's AI extracts, we only parse its JSON ───────── */
+  const END = "【SimReal 指令结束】";
+  const MARKER = '"simreal_sync"';
+  const pageText = () => (document.querySelector("main") || document.body).innerText;
+
+  function sliceJson(text, from) {
+    const at = text.indexOf(MARKER, from);
+    if (at < 0) return null;
+    const start = text.lastIndexOf("{", at);
+    let depth = 0, inStr = false, esc = false;
+    for (let i = start; i >= 0 && i < text.length; i++) {
+      const ch = text[i];
+      if (inStr) { if (esc) esc = false; else if (ch === "\\") esc = true; else if (ch === '"') inStr = false; }
+      else if (ch === '"') inStr = true;
+      else if (ch === "{") depth++;
+      else if (ch === "}" && --depth === 0) return { json: text.slice(start, i + 1), end: i + 1 };
+    }
+    return null;
+  }
+  /** The AI's reply to our prompt, if it is on the page and nothing much came after it. */
+  function finishedReply(requireTail) {
+    const text = pageText();
+    const endAt = text.lastIndexOf(END);
+    if (endAt < 0) return null;
+    const hit = sliceJson(text, endAt + END.length);
+    if (!hit) return null;
+    if (requireTail && text.length - hit.end > 600) return null;
+    try { return JSON.parse(hit.json); } catch { return null; }
+  }
+
+  function pressSend(input) {
+    const btn = [...document.querySelectorAll('button[data-testid="send-button"], button[aria-label*="Send" i], button[aria-label*="发送"], button[type="submit"]')]
+      .find((b) => b.offsetParent !== null && !b.disabled);
+    if (btn) { btn.click(); return true; }
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true }));
+    return false;
+  }
+
+  let watching = null;
+  function watchReply(payload) {
+    clearInterval(watching);
+    let last = "", stable = 0, waited = 0;
+    watching = setInterval(async () => {
+      waited += 1500;
+      const obj = finishedReply(false);
+      const sig = obj ? JSON.stringify(obj) : "";
+      stable = sig && sig === last ? stable + 1 : 0;
+      last = sig;
+      if (obj && stable >= 1) {
+        clearInterval(watching);
+        report(await send({ type: "sync", payload: { ...payload, distilled: obj } }), false);
+      } else if (waited > 240000) {
+        clearInterval(watching);
+        toast("没等到 AI 的整理结果。回复出来后再点一次「同步到团队」", true);
+      }
+    }, 1500);
+  }
+
   async function sync() {
     const c = collect();
-    if (c.text.length < 40) return toast("这页还没有对话内容", true);
-    toast("正在提炼共识与任务…");
-    const r = await send({ type: "sync", payload: { source: SOURCE, title: title(), url: location.href, text: c.text } });
+    if (c.text.length < 40 && !finishedReply(true)) return toast("这页还没有对话内容", true);
+    const payload = { source: SOURCE, title: title(), url: location.href, text: c.text };
+    const cfg = await send({ type: "prompt", url: location.href });
+    if (!cfg.ok) return toast(cfg.error, true);
+    if (cfg.data.server_ai || c.partial) {
+      toast("正在提炼…");
+      return report(await send({ type: "sync", payload }), c.partial);
+    }
+    // Already asked earlier and the answer is the last thing on the page: sync it directly.
+    const ready = finishedReply(true);
+    if (ready) return report(await send({ type: "sync", payload: { ...payload, distilled: ready } }), false);
+    const input = findInput();
+    if (!input) {
+      try { await navigator.clipboard.writeText(cfg.data.prompt); } catch { /* ignore */ }
+      return toast("已复制整理指令。粘贴发给 AI，回复后再点「同步到团队」");
+    }
+    insertText(input, cfg.data.prompt);
+    await new Promise((r) => setTimeout(r, 250));
+    const sent = pressSend(input);
+    toast(sent ? "已让 AI 整理要点，回复完成后自动同步…" : "已填好整理指令，按回车发送；回复完成后自动同步");
+    watchReply(payload);
+  }
+
+  function report(r, partial) {
     if (!r.ok) return toast(r.error, true);
     const d = r.data;
     const esc = (x) => String(x).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
     const link = d.unchanged ? "" : d.auto && !d.pending ? `<a href="${esc(d.team_url)}" target="_blank" rel="noopener">查看团队动态 →</a>` : `<a href="${esc(d.review_url)}" target="_blank" rel="noopener">去收件箱审核 →</a>`;
-    toast(`${d.unchanged ? "" : "✓ "}${esc(d.message)}${c.partial ? "（仅选中部分）" : ""}${link ? "<br>" + link : ""}`);
+    toast(`${d.unchanged ? "" : "✓ "}${esc(d.message)}${partial ? "（仅选中部分）" : ""}${link ? "<br>" + link : ""}`);
   }
 
   async function ctx() {

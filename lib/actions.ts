@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/session";
 import * as core from "@/lib/core";
 import { one, q } from "@/lib/db";
-import { aiEnabled, askWithAI, draftOutreachWithAI } from "@/lib/ai";
+import { aiEnabled, askWithAI, draftOutreachWithAI, outreachPrompt } from "@/lib/ai";
 import * as out from "@/lib/outreach";
 import { fmtMoney, pipelineOf, stageLabel, type Pipeline } from "@/lib/outreach-meta";
 import { buildDigest, pushDigest } from "@/lib/digest";
@@ -179,14 +179,19 @@ export async function resolveQuestion(itemId: number) {
 
 /* ───────────── ask ───────────── */
 
-export async function askTeam(question: string): Promise<{ answer: string; ai: boolean; cites: { id: number; kind: string; title: string; status: string }[] }> {
+const ASK_RULES = "你是团队记忆助手。只根据下面的团队条目回答，用中文，简洁直接。引用条目时在句末写编号，如 [D-12]。条目里找不到答案就直说不知道，并建议去问谁。不要编造。";
+
+export async function askTeam(question: string): Promise<{ answer: string; ai: boolean; prompt?: string; cites: { id: number; kind: string; title: string; status: string }[] }> {
   const me = await requireUser();
   const hits = await core.search(me.id, question, 40);
   const pool = hits.length >= 8 ? hits : [...hits, ...(await core.listItems(me.id, { limit: 60 })).filter((i) => !hits.some((h) => h.id === i.id))].slice(0, 60);
   if (!aiEnabled()) {
+    let ctx = "";
+    for (const i of pool) { const l = core.itemLine(i); if (ctx.length + l.length > 5000) break; ctx += l + "\n"; }
     return {
       ai: false,
-      answer: hits.length ? `找到 ${hits.length} 条相关记录（配置 ANTHROPIC_API_KEY 后可以直接得到总结回答）。` : "没有找到相关记录。",
+      prompt: `${ASK_RULES}\n\n团队条目：\n${ctx}\n问题：${question}`,
+      answer: hits.length ? `找到 ${hits.length} 条相关记录。要一句话的总结，可以把问题连同这些记录交给你的 AI：` : "没有直接相关的记录。可以把问题连同团队最近的记录交给你的 AI：",
       cites: hits.slice(0, 10).map((h) => ({ id: h.id, kind: h.kind, title: h.title, status: h.status })),
     };
   }
@@ -531,10 +536,13 @@ export async function draftFollowUp(id: number, lang: "zh" | "en") {
   const contact = [c.name && `姓名：${c.name}`, c.org && `机构：${c.org}`, c.title && `职位：${c.title}`, c.intro_by && `引荐人：${c.intro_by}`, c.notes && `备注：${c.notes.slice(0, 600)}`].filter(Boolean).join("\n");
   const history = touches.filter((t) => t.kind !== "stage").map((t) => `${t.created_at.slice(0, 10)} ${t.user_name ?? ""}（${t.kind}）：${t.body.slice(0, 400)}`).join("\n");
   const first = (c.name || c.org).split(/\s/)[0];
+  const input = { lang, company: brief.slice(0, 2500), purpose, contact, history, next: c.next_step };
+  const p2 = outreachPrompt(input);
+  const prompt = `${p2.system}\n\n${p2.user}`.replaceAll("{我的名字}", me.name);
   if (aiEnabled()) {
     try {
-      const text = await draftOutreachWithAI({ lang, company: brief.slice(0, 2500), purpose, contact, history, next: c.next_step });
-      return { ok: true as const, text: text.replaceAll("{我的名字}", me.name), ai: true };
+      const text = await draftOutreachWithAI(input);
+      return { ok: true as const, text: text.replaceAll("{我的名字}", me.name), ai: true, prompt };
     } catch (e) {
       console.error("draftFollowUp failed", e);
     }
@@ -543,5 +551,5 @@ export async function draftFollowUp(id: number, lang: "zh" | "en") {
   const text = lang === "en"
     ? `Subject: Following up${last ? " on our conversation" : ""}\n\nHi ${first},\n\n${last ? `Thanks again for the time on ${last.created_at.slice(5, 10)}. ` : ""}${c.next_step ? `As a next step: ${c.next_step}. ` : ""}Happy to send anything that would help — would a quick call next week work?\n\nBest,\n${me.name}`
     : `主题：跟进${last ? "上次的沟通" : ""}\n\n${first}您好，\n\n${last ? `感谢 ${last.created_at.slice(5, 10)} 的交流。` : ""}${c.next_step ? `下一步我们计划：${c.next_step}。` : ""}如果需要材料我随时发，下周方便再约 20 分钟吗？\n\n${me.name}`;
-  return { ok: true as const, text, ai: false };
+  return { ok: true as const, text, ai: false, prompt };
 }

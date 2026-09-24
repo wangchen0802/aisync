@@ -27,6 +27,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   (async () => {
     try {
       if (msg.type === "sync") reply({ ok: true, data: await api("/api/ingest", { method: "POST", body: JSON.stringify(msg.payload) }) });
+      else if (msg.type === "prompt") reply({ ok: true, data: await api("/api/distill-prompt?url=" + encodeURIComponent(msg.url || ""), { method: "GET" }) });
       else if (msg.type === "context") {
         const qs = new URLSearchParams();
         if (msg.topic) qs.set("topic", msg.topic);

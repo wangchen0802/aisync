@@ -102,7 +102,7 @@ export default async function Settings() {
           <Check ok={authProviders.github} label="GitHub 登录" hint="AUTH_GITHUB_ID / AUTH_GITHUB_SECRET" />
           <Check ok={authProviders.passcode} label="团队口令登录" hint="TEAM_PASSCODE" />
           <Check ok={Boolean(process.env.ALLOWED_EMAIL_DOMAINS)} label="允许的邮箱域名" hint={process.env.ALLOWED_EMAIL_DOMAINS || "ALLOWED_EMAIL_DOMAINS，例如 simreal.ai"} />
-          <Check ok={aiEnabled()} label="AI 提炼（Claude）" hint={`ANTHROPIC_API_KEY · 模型 ${process.env.ANTHROPIC_MODEL || "claude-opus-5"}`} />
+          <Check ok={aiEnabled()} label="服务器端 AI（可选）" hint={aiEnabled() ? `ANTHROPIC_API_KEY · ${process.env.ANTHROPIC_MODEL || "claude-opus-5"}：粘贴和插件同步由服务器提炼` : "不需要。大家用自己的 ChatGPT / Claude 订阅整理（连接器、插件、导入页）；配了 ANTHROPIC_API_KEY 才由服务器自动提炼"} />
           <Check ok={Boolean(notifySlack || notifyFeishu || notifyWecom || process.env.SLACK_WEBHOOK_URL)} label="团队通知渠道" hint="在上方「团队通知」里配置飞书 / 企业微信 / Slack" />
           <Check ok={Boolean(process.env.CRON_SECRET)} label="定时提醒" hint="CRON_SECRET：工作日 9:00 私信每人的 DDL 与待确认，周一发本周目标，18:00 发每日简报" />
         </div>

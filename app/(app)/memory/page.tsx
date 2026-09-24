@@ -4,7 +4,6 @@ import { getSetting, listGoals, listProjects } from "@/lib/core";
 import { q } from "@/lib/db";
 import { ensureContextKey } from "@/lib/apitoken";
 import { origin } from "@/lib/origin";
-import { aiEnabled } from "@/lib/ai";
 import { ago, estimateTokens, todayISO, weekStart } from "@/lib/meta";
 import { BriefEditor, ContextPreview, ProjectContextEditor, RotateKey } from "@/components/memory-client";
 import { AskBox } from "@/components/ask-box";
@@ -103,8 +102,8 @@ export default async function Memory() {
       </section>
 
       <section className="box" id="ask">
-        <div className="box-h"><h2><Icon name="ask" />问团队记忆</h2><span className="c">{aiEnabled() ? "带出处" : "关键词检索"}</span></div>
-        <div className="pad stack" style={{ gap: 12 }}><AskBox initial="" ai={aiEnabled()} autoFocus={false} /></div>
+        <div className="box-h"><h2><Icon name="ask" />问团队记忆</h2><span className="c">带出处</span></div>
+        <div className="pad stack" style={{ gap: 12 }}><AskBox initial="" autoFocus={false} /></div>
       </section>
     </>
   );

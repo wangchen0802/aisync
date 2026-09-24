@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
+import { grams } from "@/lib/meta";
 
 export const aiEnabled = () => Boolean(process.env.ANTHROPIC_API_KEY);
 const MODEL = () => process.env.ANTHROPIC_MODEL || "claude-opus-5";
@@ -168,8 +169,40 @@ const RelationSchema = z.object({
 
 type Brief = { id: number; kind: string; title: string; body: string; owner: string };
 
+/**
+ * Without a server-side model: tasks that say nearly the same thing are flagged as duplicates, and decisions about the
+ * same subject whose numbers differ ($12 vs $15, 3 周 vs 5 周) are flagged as conflicts. Conservative on purpose.
+ */
+export function relationsHeuristic(fresh: Brief[], existing: Brief[]) {
+  const out: { new_id: number; existing_id: number; type: "conflict" | "duplicate"; reason: string }[] = [];
+  const nums = (s: string) => new Set(s.match(/\d+(?:\.\d+)?/g) ?? []);
+  for (const f of fresh) {
+    const fg = grams(`${f.title}`);
+    if (fg.size < 3) continue;
+    let best: { e: Brief; score: number } | null = null;
+    for (const e of existing) {
+      if (e.kind !== f.kind) continue;
+      const eg = grams(`${e.title}`);
+      if (eg.size < 3) continue;
+      let inter = 0;
+      for (const g of fg) if (eg.has(g)) inter++;
+      const score = inter / Math.min(fg.size, eg.size);
+      if (!best || score > best.score) best = { e, score };
+    }
+    if (!best || best.score < 0.7) continue;
+    if (f.kind === "task") out.push({ new_id: f.id, existing_id: best.e.id, type: "duplicate", reason: `和「${best.e.title.slice(0, 30)}」很像` });
+    else if (f.kind === "decision") {
+      const a = nums(f.title), b = nums(best.e.title);
+      const differ = a.size > 0 && b.size > 0 && [...a].some((n) => !b.has(n));
+      if (differ) out.push({ new_id: f.id, existing_id: best.e.id, type: "conflict", reason: "同一件事，数字不一致" });
+    }
+  }
+  return out;
+}
+
 export async function findRelations(fresh: Brief[], existing: Brief[]) {
-  if (!aiEnabled() || !fresh.length || !existing.length) return [];
+  if (!fresh.length || !existing.length) return [];
+  if (!aiEnabled()) return relationsHeuristic(fresh, existing);
   const fmt = (b: Brief) => `#${b.id} [${b.kind}] ${b.title}${b.body ? `（${b.body}）` : ""} —— ${b.owner}`;
   try {
     const res = await client().messages.parse({
@@ -206,20 +239,26 @@ export async function askWithAI(question: string, context: string): Promise<stri
 
 /* ───────────── outreach drafts ───────────── */
 
-export async function draftOutreachWithAI(input: { lang: "zh" | "en"; company: string; purpose: string; contact: string; history: string; next: string }): Promise<string> {
+type DraftInput = { lang: "zh" | "en"; company: string; purpose: string; contact: string; history: string; next: string };
+
+export function outreachPrompt(input: DraftInput) {
+  const system =
+    `你帮创业公司的创始人写一封跟进邮件。要求：${input.lang === "en" ? "用英文写。" : "用中文写。"}` +
+    "第一行是「主题：…」（英文写 Subject: …），空一行后是正文。正文 80–160 字（英文 60–120 词），像创始人本人写的：具体、直接、有礼貌，" +
+    "引用最近一次沟通里的具体内容，给出一个明确的下一步（时间或材料）。不要客套话堆砌，不要夸张形容词，不要编造数字或事实；没有的信息就不写。署名留「{我的名字}」。";
+  const user = `公司背景：\n${input.company || "（未填写）"}\n\n目的：${input.purpose}\n\n对方：\n${input.contact}\n\n沟通记录（新的在前）：\n${input.history || "（还没有记录）"}\n\n计划的下一步：${input.next || "（未定）"}`;
+  return { system, user };
+}
+
+export async function draftOutreachWithAI(input: DraftInput): Promise<string> {
+  const { system, user } = outreachPrompt(input);
   const res = await client().messages.create({
     model: MODEL(),
     max_tokens: 3000,
     thinking: { type: "adaptive" },
     output_config: { effort: "low" },
-    system:
-      `你帮创业公司的创始人写一封跟进邮件。要求：${input.lang === "en" ? "用英文写。" : "用中文写。"}` +
-      "第一行是「主题：…」（英文写 Subject: …），空一行后是正文。正文 80–160 字（英文 60–120 词），像创始人本人写的：具体、直接、有礼貌，" +
-      "引用最近一次沟通里的具体内容，给出一个明确的下一步（时间或材料）。不要客套话堆砌，不要夸张形容词，不要编造数字或事实；没有的信息就不写。署名留「{我的名字}」。",
-    messages: [{
-      role: "user",
-      content: `公司背景：\n${input.company || "（未填写）"}\n\n目的：${input.purpose}\n\n对方：\n${input.contact}\n\n沟通记录（新的在前）：\n${input.history || "（还没有记录）"}\n\n计划的下一步：${input.next || "（未定）"}`,
-    }],
+    system,
+    messages: [{ role: "user", content: user }],
   });
   return res.content.map((b) => (b.type === "text" ? b.text : "")).join("").trim();
 }

@@ -150,3 +150,13 @@ export function estimateTokens(text: string) {
   const cjk = (text.match(/[㐀-鿿]/g) ?? []).length;
   return Math.round(cjk * 1.1 + (text.length - cjk) / 3.8);
 }
+
+/** Word + CJK-bigram set used for fuzzy matching (search, duplicate / conflict hints). */
+export function grams(s: string) {
+  const t = s.toLowerCase().replace(/\s+/g, " ");
+  const out = new Set<string>();
+  for (const w of t.split(/[^\p{L}\p{N}]+/u)) if (w.length > 1 && /^[a-z0-9]+$/.test(w)) out.add(w);
+  const cjk = t.replace(/[^\p{Script=Han}]/gu, "");
+  for (let i = 0; i < cjk.length - 1; i++) out.add(cjk.slice(i, i + 2));
+  return out;
+}

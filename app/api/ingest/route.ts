@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ingestConversation } from "@/lib/core";
 import { CORS, json, userFromRequest } from "@/lib/token";
 import { SOURCES } from "@/lib/meta";
+import { normalizeDistilled } from "@/lib/selfdistill";
 
 export const maxDuration = 120;
 
@@ -10,7 +11,8 @@ const Body = z.object({
   title: z.string().max(300).optional(),
   url: z.string().max(2000).optional(),
   external_key: z.string().max(300).optional(),
-  text: z.string().min(20).max(1_000_000),
+  text: z.string().max(1_000_000).default(""),
+  distilled: z.unknown().optional(),
   project_id: z.number().int().optional(),
 });
 
@@ -27,9 +29,12 @@ export async function POST(req: Request) {
   } catch {
     return json({ error: "请求格式不正确：需要 text（至少 20 个字符）" }, 400);
   }
+  const distilled = body.distilled ? normalizeDistilled(body.distilled) : null;
+  if (body.distilled && !distilled) return json({ error: "distilled 格式不正确" }, 400);
+  if (!distilled && body.text.trim().length < 20) return json({ error: "请求格式不正确：需要 text（至少 20 个字符）" }, 400);
   const source = body.source in SOURCES ? body.source : "other";
   try {
-    const r = await ingestConversation(user, { source, title: body.title, url: body.url, externalKey: body.external_key, text: body.text, projectId: body.project_id ?? null });
+    const r = await ingestConversation(user, { source, title: body.title, url: body.url, externalKey: body.external_key, text: body.text, projectId: body.project_id ?? null, distilled });
     const origin = new URL(req.url).origin;
     const pending = r.items + r.updates - r.published;
     return json({

@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useState } from "react";
 import { importConversation, type Result } from "@/lib/actions";
 import { SOURCES, type SourceKey } from "@/lib/meta";
-import { toast } from "@/components/client";
+import { CopyButton, toast } from "@/components/client";
 import { Icon } from "@/components/ui";
 
 const PICK = ["chatgpt", "claude", "deepseek", "gemini", "grok", "perplexity", "kimi", "doubao", "qwen", "claudecode", "cursor", "copilot", "other"] as const;
@@ -22,7 +22,7 @@ function detectSource(text: string, url: string): SourceKey | null {
   return null;
 }
 
-export function ImportForm({ projects, initial }: { projects: { id: number; name: string }[]; initial: { title: string; text: string; url: string } }) {
+export function ImportForm({ projects, initial, selfPrompt }: { projects: { id: number; name: string }[]; initial: { title: string; text: string; url: string }; selfPrompt?: string }) {
   const [state, action, pending] = useActionState<Result | null, FormData>(importConversation, null);
   const firstUrl = initial.url || initial.text.match(/https?:\/\/\S+/)?.[0] || "";
   const [text, setText] = useState(initial.text);
@@ -30,6 +30,7 @@ export function ImportForm({ projects, initial }: { projects: { id: number; name
   const [source, setSource] = useState<string>(detectSource(initial.text, firstUrl) ?? "chatgpt");
   const [touched, setTouched] = useState(false);
   const onlyLink = /^\s*https?:\/\/\S+\s*$/.test(text);
+  const structured = text.includes('"simreal_sync"');
 
   useEffect(() => {
     if (touched) return;
@@ -64,9 +65,18 @@ export function ImportForm({ projects, initial }: { projects: { id: number; name
         </div>
         <input type="hidden" name="source" value={source} />
       </div>
+      {selfPrompt ? (
+        <div className="byo">
+          <div className="byo-t"><b>让你的 AI 自己整理</b><span className="muted">用 ChatGPT / Claude / DeepSeek 订阅，不需要 API</span></div>
+          <ol className="byo-s">
+            <li><CopyButton className="btn sm pri" text={selfPrompt} label="复制整理指令" done="已复制" /> 发到你和 AI 的那个对话里</li>
+            <li>AI 回复一段 JSON 后，把整段对话（或只是那段回复）复制过来粘贴到下面</li>
+          </ol>
+        </div>
+      ) : null}
       <div className="field">
         <div className="row" style={{ justifyContent: "space-between" }}>
-          <span className="muted" style={{ fontSize: 12, fontWeight: 500 }}>对话内容</span>
+          <span className="muted" style={{ fontSize: 12, fontWeight: 500 }}>对话内容{structured ? <span className="pill ok" style={{ marginLeft: 8 }}>✓ 已识别 AI 的整理结果</span> : null}</span>
           <button type="button" className="btn sm" onClick={paste}><Icon name="copy" />粘贴</button>
         </div>
         <textarea name="text" className="textarea" style={{ minHeight: 260, fontSize: 13 }} required value={text} onChange={(e) => setText(e.target.value)}
@@ -86,8 +96,8 @@ export function ImportForm({ projects, initial }: { projects: { id: number; name
       <input type="hidden" name="url" value={url} />
       {state && !state.ok ? <div className="note err">{state.error}</div> : null}
       <div className="row">
-        <button className="btn pri lg" disabled={pending || onlyLink}>{pending ? <><span className="spin" />正在提炼共识与任务…</> : "提炼"}</button>
-        <span className="muted" style={{ fontSize: 12 }}>约 20 秒</span>
+        <button className="btn pri lg" disabled={pending || onlyLink}>{pending ? <><span className="spin" />{structured ? "正在同步…" : "正在提炼…"}</> : structured ? "同步" : "提炼"}</button>
+        {!structured && selfPrompt ? <span className="muted" style={{ fontSize: 12 }}>直接粘贴也可以，按关键词提取，准确度一般</span> : null}
       </div>
     </form>
   );

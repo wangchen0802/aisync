@@ -4,8 +4,11 @@ import type { Actor } from "@/lib/core";
 
 export async function userFromRequest(req: Request): Promise<Actor | null> {
   const h = req.headers.get("authorization") ?? "";
-  const token = h.replace(/^Bearer\s+/i, "").trim();
-  if (!token.startsWith("sr_")) return null;
+  return userFromToken(h.replace(/^Bearer\s+/i, "").trim());
+}
+
+export async function userFromToken(token: string): Promise<Actor | null> {
+  if (!token.startsWith("sr_") || token.length > 100) return null;
   const u = await one<{ id: number; name: string | null; email: string; role: string }>(
     "select id, name, email, role from users where api_token = $1",
     [token],

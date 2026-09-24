@@ -19,6 +19,14 @@
 - **问团队记忆**、**每日简报**、**⌘K 命令面板**。
 - **连接 AI**：浏览器插件（一键同步，还能把团队上下文插回对话框）、Claude Code Hook（会话结束自动同步）、MCP Server（Claude Code、Cursor 等可以直接查询和写入团队记忆）。
 
+**不需要 API Key。** 团队用各自的 ChatGPT / Claude 订阅就行：AI 的整理工作在每个人自己的对话里完成，SimReal 只负责收集、确认和分发。
+
+- **Claude（Pro / Max / Team）、ChatGPT（Plus / Pro）**：在设置里把 SimReal 加成自定义连接器（地址在「连接 AI」页），之后在对话里说「同步到 SimReal」，AI 自己整理决策、任务、进展发过来；也会先读团队记忆再回答。
+- **DeepSeek、Gemini、Grok、Kimi 等**：浏览器插件点「同步到团队」，插件让当前 AI 按指令输出一段 JSON，回复完成后自动同步。
+- **Claude Code**：一条命令装好 MCP 和 `/simreal` 命令。
+- **问团队记忆、写跟进邮件**：一键带着团队上下文打开 ChatGPT / Claude。
+- 配了 `ANTHROPIC_API_KEY` 的话，服务器也能直接提炼粘贴进来的对话（可选）。
+
 技术栈：Next.js 15（App Router）· Auth.js · Postgres（Neon）· Claude API · 可直接部署到 Vercel。
 
 ---
@@ -41,7 +49,7 @@
    | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | 登录方式二选一 | Google 登录（推荐，配置方法见下） |
    | `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` | 可选 | GitHub 登录 |
    | `ALLOWED_EMAIL_DOMAINS` | 建议 | 例如 `simreal.ai`，这个域名的邮箱用 Google / GitHub 登录时不需要邀请 |
-   | `ANTHROPIC_API_KEY` | 强烈建议 | 开启 AI 提炼、冲突检测和问答。不填会退回规则提取 |
+   | `ANTHROPIC_API_KEY` | 不需要 | 可选。配了之后服务器会直接提炼粘贴 / 插件同步的对话、写邮件草稿。不配时这些由每个人自己的 ChatGPT / Claude 订阅完成 |
    | `ANTHROPIC_MODEL` | 可选 | 默认 `claude-opus-5` |
    | `CRON_SECRET` | 建议 | 开启定时任务：工作日 9:00 私信每人今天的 DDL 和待确认（周一加发本周目标），18:00 群里推每日简报 |
 
@@ -81,8 +89,9 @@
 
 | AI | 接入方式 |
 | --- | --- |
+| Claude（Pro / Max / Team）、ChatGPT（Plus / Pro） | 自定义连接器：`https://<你的域名>/api/mcp/<个人密钥>`，在对话里说「同步到 SimReal」 |
 | ChatGPT、Claude、DeepSeek、Gemini、Grok、Perplexity、Kimi、豆包、通义千问 | 浏览器插件：页面右下角有「同步到团队」和「插入团队上下文」两个按钮，快捷键 `Alt+Shift+S` |
-| Claude Code | 一条命令（「连接 AI」页复制）：装好 SessionEnd Hook 自动同步 + MCP 读写团队记忆 |
+| Claude Code | 一条命令（「连接 AI」页复制）：MCP 读写团队记忆 + `/simreal` 命令整理本次会话 + 会话结束存档 |
 | Cursor、Windsurf、Claude Desktop 等 MCP 客户端 | 远程 MCP：`https://<你的域名>/api/mcp` |
 | 其他任何 AI | 在「导入对话」页面粘贴 |
 
@@ -92,7 +101,9 @@
 
 ### API
 
-- `POST /api/ingest`（`Authorization: Bearer sr_...`）：`{ source, title?, url?, text }`，把对话放进收件箱
+- `POST /api/ingest`（`Authorization: Bearer sr_...`）：`{ source, title?, url?, text, distilled? }`，把对话放进收件箱；`distilled` 是 AI 已经整理好的结果（格式见 `GET /api/distill-prompt`）
+- `GET /api/distill-prompt`：给你自己的 AI 用的整理指令
+- `POST /api/mcp/<个人密钥>`：给 Claude.ai / ChatGPT 连接器用的 MCP 地址
 - `POST /api/mcp`：MCP（Streamable HTTP）。工具：`search_team_memory`、`get_team_context`、`get_my_work`、`get_pipeline`、`log_outreach`、`log_decision`、`create_task`、`update_task`、`sync_conversation`
 - `GET /api/context?scope=team|project|me&project=<id>&topic=<话题>`：纯文本的团队上下文包
 - `GET /c/<链接密钥>`：只读上下文链接（「记忆」页可以重置）

@@ -13,6 +13,7 @@ import {
 import { addDays, ago, avatarColor, todayISO } from "@/lib/meta";
 import { CopyButton, Dialog, report, toast } from "@/components/client";
 import { DueChip, Icon } from "@/components/ui";
+import { OpenInAI } from "@/components/open-in-ai";
 
 type Opt = { id: number; name: string };
 
@@ -492,11 +493,12 @@ export function DraftBox({ id, email, defaultLang }: { id: number; email: string
   const [lang, setLang] = useState(defaultLang);
   const [text, setText] = useState("");
   const [ai, setAi] = useState(false);
+  const [prompt, setPrompt] = useState("");
   const [pending, start] = useTransition();
   const gen = () => start(async () => {
     const r = await draftFollowUp(id, lang);
     if (!r.ok) return report(r);
-    setText(r.text); setAi(r.ai);
+    setText(r.text); setAi(r.ai); setPrompt(r.prompt);
   });
   const subject = text.match(/^(?:主题|Subject)[:：]\s*(.+)$/m)?.[1] ?? "";
   const body = text.replace(/^(?:主题|Subject)[:：].*\n+/m, "");
@@ -511,11 +513,12 @@ export function DraftBox({ id, email, defaultLang }: { id: number; email: string
         <>
           <textarea className="textarea" style={{ minHeight: 200 }} value={text} onChange={(e) => setText(e.target.value)} aria-label="草稿" />
           <div className="row">
-            <span className="faint" style={{ fontSize: 11.5 }}>{ai ? "AI 根据沟通记录和团队档案起草" : "模板（配置 AI 后会根据沟通记录起草）"}</span>
+            <span className="faint" style={{ fontSize: 11.5 }}>{ai ? "AI 根据沟通记录和团队档案起草" : "基础模板"}</span>
             <span className="grow" />
             <CopyButton text={text} label="复制" />
             {email ? <a className="btn sm" href={`mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`}>用邮件打开</a> : null}
           </div>
+          {!ai && prompt ? <OpenInAI prompt={prompt} label="用你的 AI 写得更好：" /> : null}
         </>
       ) : null}
     </div>

@@ -5,6 +5,7 @@ import { Fragment, useEffect, useRef, useState, useTransition } from "react";
 import { askTeam } from "@/lib/actions";
 import { code, DECISION_STATUS, TASK_STATUS } from "@/lib/meta";
 import { Icon } from "@/components/ui";
+import { OpenInAI } from "@/components/open-in-ai";
 
 type Answer = Awaited<ReturnType<typeof askTeam>>;
 const SUGGEST = ["最近定了什么？", "谁在负责什么？", "哪些还没定？", "什么被阻塞了？"];
@@ -27,7 +28,7 @@ function Rich({ text }: { text: string }) {
   );
 }
 
-export function AskBox({ initial, ai, autoFocus = true }: { initial: string; ai: boolean; autoFocus?: boolean }) {
+export function AskBox({ initial, autoFocus = true }: { initial: string; ai?: boolean; autoFocus?: boolean }) {
   const [q, setQ] = useState(initial);
   const [asked, setAsked] = useState("");
   const [ans, setAns] = useState<Answer | null>(null);
@@ -52,12 +53,12 @@ export function AskBox({ initial, ai, autoFocus = true }: { initial: string; ai:
       <div className="chips">
         {SUGGEST.map((s) => <button key={s} className="chip" onClick={() => { setQ(s); ask(s); }}>{s}</button>)}
       </div>
-      {!ai ? <div className="note">未配置 ANTHROPIC_API_KEY，只返回关键词匹配结果。</div> : null}
       {pending ? (
         <section className="box ans"><span className="muted row"><span className="spin" />正在查：{asked}</span></section>
       ) : ans ? (
         <section className="box ans">
           <Rich text={ans.answer} />
+          {ans.prompt ? <OpenInAI prompt={ans.prompt} label="交给" /> : null}
           {ans.cites.length ? (
             <div className="stack" style={{ gap: 6, borderTop: "1px solid var(--line)", paddingTop: 12 }}>
               {ans.cites.map((c) => (
