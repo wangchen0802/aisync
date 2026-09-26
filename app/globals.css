@@ -888,3 +888,8 @@ kbd { font-family: var(--mono); font-size: 10.5px; border: 1px solid var(--line)
 .say { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: var(--ink-2); }
 .say li { background: var(--subtle); border: 1px solid var(--line); border-radius: 8px; padding: 5px 9px; }
 @media (max-width: 860px) { .sub-steps { grid-template-columns: 1fr; } .sub-hero { padding: 16px; } }
+/* project rows: name + count on one line, bar underneath (fits the narrow overview column) */
+.pr { grid-template-columns: minmax(0, 1fr) auto; row-gap: 6px; }
+.pr .bars { grid-column: 1 / -1; order: 3; min-width: 0; }
+.pr .bars .prog { flex: 1; }
+.pr .pc { flex: none; }
