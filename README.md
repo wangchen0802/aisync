@@ -27,6 +27,8 @@
 - **问团队记忆、写跟进邮件**：一键带着团队上下文打开 ChatGPT / Claude。
 - 配了 `ANTHROPIC_API_KEY` 的话，服务器也能直接提炼粘贴进来的对话（可选）。
 
+> **同一个仓库里还有「需求雷达」**（`radar/`）：监控 AI 实验室对训练数据和 RL 环境的需求（数据商 / 实验室招聘页、X、Reddit、HN、论文、新闻），独立部署。见 [radar/README.md](radar/README.md)。
+
 技术栈：Next.js 15（App Router）· Auth.js · Postgres（Neon）· Claude API · 可直接部署到 Vercel。
 
 ---
